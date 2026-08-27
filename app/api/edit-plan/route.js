@@ -23,12 +23,17 @@ ${clipList}
 - 전체 영상 길이는 8~25초 사이로 구성하세요.
 - 자막은 전체 타임라인 기준(초 단위)으로 시작/끝 시각을 지정하세요. 자막끼리 겹치지 않게 하세요.
 - 자막 문구는 짧고 임팩트 있게, 실제 릴스에 쓸 수준으로 작성하세요.
+- bgmKey는 이 영상 분위기에 가장 잘 맞는 것 하나를 아래 중에서 고르세요:
+  - "calm-piano": 잔잔한 피아노, 감동적/진솔한 톤
+  - "upbeat-reel": 밝고 경쾌한 릴스 비트, 활기찬 톤
+  - "trust-corporate": 차분하고 신뢰감 있는 톤, 전문적/정보형
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
   "clipPlan": [ { "index": 0, "duration": 3.0 } ],
   "captions": [ { "start": 0, "end": 2.5, "text": "자막 문구" } ],
-  "totalDuration": 15.0
+  "totalDuration": 15.0,
+  "bgmKey": "calm-piano"
 }`
 
   try {

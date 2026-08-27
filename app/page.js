@@ -9,6 +9,11 @@ const SOURCE_TAGS = [
 ]
 const TREATMENT_TAGS = ['이마라인 교정', '눈썹 반영구', '복합 시술', '상담/설명', '기타']
 const MOOD_TAGS = ['감동적/진솔한', '전문적/신뢰감', '밝고 활기찬', '교육적/정보형', '친근한/일상적']
+const BGM_LABELS = {
+  'calm-piano': '잔잔한 피아노 (Emotional Piano · MondaMusic)',
+  'upbeat-reel': '밝고 경쾌한 릴스 비트 (Instagram Reel · SoundSurfer)',
+  'trust-corporate': '차분하고 신뢰감 있는 톤 (Trusted Coverage · JoyInSound)',
+}
 
 function StepDot({ n, current }) {
   const done = n < current
@@ -214,6 +219,7 @@ export default function Page() {
           clips: renderClips,
           captions: plan.captions,
           bgmUrl: bgm?.url || null,
+          bgmKey: bgm?.url ? null : plan.bgmKey,
           totalDuration: plan.totalDuration,
         }),
       })
@@ -345,7 +351,7 @@ export default function Page() {
 
             {clips.length > 0 && (
               <div className="tag-group">
-                <div className="tag-label">BGM 파일 (선택 — 없으면 자동 편집 시 원본 소리만 들어가요)</div>
+                <div className="tag-label">BGM 파일 (선택 — 안 올리면 분위기에 맞는 무료 음원을 자동으로 넣어드려요)</div>
                 <input
                   type="file"
                   accept="audio/*"
@@ -520,6 +526,15 @@ export default function Page() {
                           <div className="caption-line">&quot;{c.text}&quot;</div>
                         </div>
                       ))}
+                    </div>
+                    <div className="dir-section">
+                      <div className="dir-sec-label">사용된 BGM</div>
+                      <div className="dir-step">
+                        <div className="dir-step-no">♪</div>
+                        <div className="dir-step-text">
+                          {bgm?.url ? `직접 업로드한 파일: ${bgm.file.name}` : (BGM_LABELS[renderResult.plan.bgmKey] || '없음 (원본 소리만)')}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
