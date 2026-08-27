@@ -26,7 +26,7 @@ export async function POST(request) {
 }`
 
   try {
-    const parsed = await callClaude(prompt, 1200)
+    const parsed = await callClaude(prompt, 3000)
     return Response.json(parsed)
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })

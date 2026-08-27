@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { upload } from '@vercel/blob/client'
 
 const SOURCE_TAGS = [
   '시술 전 사진/영상', '시술 중 클로즈업', '시술 후 결과', '고객 반응',
@@ -18,11 +19,27 @@ function StepDot({ n, current }) {
         {done ? '✓' : n}
       </div>
       <span className={`step-label${active ? ' active' : ''}`}>
-        {n === 1 ? '소스 입력' : n === 2 ? '연출 선택' : '편집 지시서'}
+        {n === 1 ? '소스 입력' : n === 2 ? '연출 선택' : '완성'}
       </span>
     </div>
   )
 }
+
+function probeVideoDuration(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const v = document.createElement('video')
+    v.preload = 'metadata'
+    v.onloadedmetadata = () => {
+      resolve(v.duration || null)
+      URL.revokeObjectURL(url)
+    }
+    v.onerror = () => { resolve(null); URL.revokeObjectURL(url) }
+    v.src = url
+  })
+}
+
+let nextClipId = 1
 
 export default function Page() {
   const [step, setStep] = useState(1)
@@ -31,12 +48,19 @@ export default function Page() {
   const [treatment, setTreatment] = useState('')
   const [mood, setMood] = useState('')
 
+  // 업로드된 소스 클립: { id, file, label, isImage, duration, url, status }
+  const [clips, setClips] = useState([])
+  const [bgm, setBgm] = useState(null) // { file, url, status }
+
   const [loadingProposals, setLoadingProposals] = useState(false)
   const [proposals, setProposals] = useState([])
   const [selectedIndex, setSelectedIndex] = useState(null)
 
   const [loadingDirective, setLoadingDirective] = useState(false)
   const [directive, setDirective] = useState(null)
+  const [renderResult, setRenderResult] = useState(null)
+  const [renderStage, setRenderStage] = useState('')
+  const [rendering, setRendering] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
@@ -44,6 +68,55 @@ export default function Page() {
     setSourceTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     )
+  }
+
+  async function handleFilesSelected(fileList) {
+    const files = Array.from(fileList)
+    const entries = files.map((file) => ({
+      id: nextClipId++,
+      file,
+      label: SOURCE_TAGS[0],
+      isImage: file.type.startsWith('image/'),
+      duration: file.type.startsWith('image/') ? 2.5 : null,
+      url: null,
+      status: 'uploading',
+    }))
+    setClips((prev) => [...prev, ...entries])
+
+    for (const entry of entries) {
+      try {
+        if (!entry.isImage) {
+          const dur = await probeVideoDuration(entry.file)
+          setClips((prev) => prev.map((c) => (c.id === entry.id ? { ...c, duration: dur } : c)))
+        }
+        const blob = await upload(entry.file.name, entry.file, {
+          access: 'public',
+          handleUploadUrl: '/api/blob-upload',
+        })
+        setClips((prev) => prev.map((c) => (c.id === entry.id ? { ...c, url: blob.url, status: 'done' } : c)))
+      } catch (e) {
+        setClips((prev) => prev.map((c) => (c.id === entry.id ? { ...c, status: 'error' } : c)))
+      }
+    }
+  }
+
+  async function handleBgmSelected(file) {
+    if (!file) return
+    setBgm({ file, url: null, status: 'uploading' })
+    try {
+      const blob = await upload(file.name, file, { access: 'public', handleUploadUrl: '/api/blob-upload' })
+      setBgm({ file, url: blob.url, status: 'done' })
+    } catch {
+      setBgm({ file, url: null, status: 'error' })
+    }
+  }
+
+  function updateClipLabel(id, label) {
+    setClips((prev) => prev.map((c) => (c.id === id ? { ...c, label } : c)))
+  }
+
+  function removeClip(id) {
+    setClips((prev) => prev.filter((c) => c.id !== id))
   }
 
   async function generateProposals() {
@@ -102,6 +175,60 @@ export default function Page() {
     }
   }
 
+  async function runAutoEdit() {
+    if (selectedIndex === null) return
+    const proposal = proposals[selectedIndex]
+    const readyClips = clips.filter((c) => c.status === 'done' && c.url)
+    if (readyClips.length === 0) {
+      alert('업로드가 아직 끝나지 않았어요. 잠시 후 다시 시도해주세요.')
+      return
+    }
+    setError('')
+    setStep(3)
+    setRendering(true)
+    setRenderResult(null)
+    try {
+      setRenderStage('편집 계획 짜는 중...')
+      const planRes = await fetch('/api/edit-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposal,
+          sourceText: sourceText.trim(),
+          treatment,
+          clips: readyClips.map((c) => ({ label: c.label, duration: c.duration })),
+        }),
+      })
+      const plan = await planRes.json()
+      if (!planRes.ok) throw new Error(plan.error || '편집 계획 생성 실패')
+
+      setRenderStage('영상 합성 중... (최대 1~2분 걸려요)')
+      const renderClips = plan.clipPlan.map((p) => ({
+        url: readyClips[p.index].url,
+        duration: p.duration,
+      }))
+      const renderRes = await fetch('/api/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clips: renderClips,
+          captions: plan.captions,
+          bgmUrl: bgm?.url || null,
+          totalDuration: plan.totalDuration,
+        }),
+      })
+      const rendered = await renderRes.json()
+      if (!renderRes.ok) throw new Error(rendered.error || '영상 합성 실패')
+
+      setRenderResult({ url: rendered.url, plan })
+    } catch (e) {
+      setError(`자동 편집 실패: ${e.message}`)
+    } finally {
+      setRendering(false)
+      setRenderStage('')
+    }
+  }
+
   function directiveText() {
     if (!directive) return ''
     return (
@@ -128,11 +255,16 @@ export default function Page() {
     setSourceTags([])
     setTreatment('')
     setMood('')
+    setClips([])
+    setBgm(null)
     setProposals([])
     setSelectedIndex(null)
     setDirective(null)
+    setRenderResult(null)
     setError('')
   }
+
+  const hasClips = clips.some((c) => c.status === 'done')
 
   return (
     <>
@@ -140,7 +272,7 @@ export default function Page() {
         <div className="header-mark">✦</div>
         <div>
           <div className="header-title">유비 디렉터</div>
-          <div className="header-sub">영상 소스 설명 → 릴스 연출 제안 → 편집 지시서</div>
+          <div className="header-sub">영상 소스 업로드 → 릴스 연출 제안 → 자동 편집</div>
         </div>
       </div>
 
@@ -158,7 +290,7 @@ export default function Page() {
             <div className="section">
               <div className="sec-eyebrow">Step 1</div>
               <div className="sec-title">오늘 어떤 영상 찍었어요?</div>
-              <div className="sec-desc">촬영한 것들을 편하게 설명해주세요. 잘 정리 안 해도 돼요.</div>
+              <div className="sec-desc">촬영한 것들을 편하게 설명해주세요. 영상/사진을 올리면 자동으로 편집까지 해드려요.</div>
             </div>
 
             <div className="input-wrap" style={{ marginBottom: 16 }}>
@@ -172,6 +304,61 @@ export default function Page() {
                 <span className="char-count">{sourceText.length}자</span>
               </div>
             </div>
+
+            <div className="tag-group">
+              <div className="tag-label">영상/사진 파일 업로드 (선택 — 올리면 자동 편집까지 해드려요)</div>
+              <input
+                type="file"
+                accept="video/*,image/*"
+                multiple
+                onChange={(e) => handleFilesSelected(e.target.files)}
+                style={{ color: 'var(--text-sub)', fontSize: 13 }}
+              />
+              {clips.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                  {clips.map((c) => (
+                    <div key={c.id} className="dir-step" style={{ alignItems: 'center' }}>
+                      <div style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>
+                        {c.file.name}
+                        {c.status === 'uploading' && <span style={{ color: 'var(--text-muted)' }}> · 업로드 중...</span>}
+                        {c.status === 'error' && <span style={{ color: 'var(--rose)' }}> · 업로드 실패</span>}
+                        {c.status === 'done' && !c.isImage && c.duration && (
+                          <span style={{ color: 'var(--text-muted)' }}> · {c.duration.toFixed(1)}초</span>
+                        )}
+                      </div>
+                      <select
+                        value={c.label}
+                        onChange={(e) => updateClipLabel(c.id, e.target.value)}
+                        style={{
+                          background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)',
+                          borderRadius: 8, fontSize: 12, padding: '4px 8px',
+                        }}
+                      >
+                        {SOURCE_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <button className="btn-reset" style={{ padding: '4px 10px' }} onClick={() => removeClip(c.id)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {clips.length > 0 && (
+              <div className="tag-group">
+                <div className="tag-label">BGM 파일 (선택 — 없으면 자동 편집 시 원본 소리만 들어가요)</div>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => handleBgmSelected(e.target.files[0])}
+                  style={{ color: 'var(--text-sub)', fontSize: 13 }}
+                />
+                {bgm && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                    {bgm.file.name} {bgm.status === 'uploading' ? '· 업로드 중...' : bgm.status === 'done' ? '· 완료' : '· 실패'}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="tag-group">
               <div className="tag-label">어떤 소스가 있나요? (복수 선택)</div>
@@ -271,10 +458,21 @@ export default function Page() {
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 16 }}>
-              <button className="btn-primary" onClick={generateDirective} disabled={selectedIndex === null}>
-                편집 지시서 받기 →
-              </button>
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {hasClips ? (
+                <>
+                  <button className="btn-primary" onClick={runAutoEdit} disabled={selectedIndex === null}>
+                    🎬 자동 편집 실행 →
+                  </button>
+                  <button className="btn-secondary" onClick={generateDirective} disabled={selectedIndex === null}>
+                    편집 지시서만 보기
+                  </button>
+                </>
+              ) : (
+                <button className="btn-primary" onClick={generateDirective} disabled={selectedIndex === null}>
+                  편집 지시서 받기 →
+                </button>
+              )}
             </div>
             <div className="restart-row">
               <button className="btn-restart" onClick={restart}>← 소스 다시 입력</button>
@@ -286,20 +484,53 @@ export default function Page() {
           <div>
             <div className="section">
               <div className="sec-eyebrow">Step 3</div>
-              <div className="sec-title">이렇게 편집하면 돼요</div>
-              <div className="sec-desc">순서대로 따라하면 완성이에요.</div>
+              <div className="sec-title">{renderResult ? '완성됐어요!' : rendering ? '자동 편집 중이에요' : '이렇게 편집하면 돼요'}</div>
+              <div className="sec-desc">
+                {renderResult ? '아래 영상을 확인하고 다운로드하세요.' : rendering ? '' : '순서대로 따라하면 완성이에요.'}
+              </div>
             </div>
 
-            {loadingDirective && (
+            {(loadingDirective || rendering) && (
               <div className="loading show">
                 <div className="loading-dots">
                   <div className="dot" /><div className="dot" /><div className="dot" />
                 </div>
-                <div className="loading-text">편집 지시서 작성 중...</div>
+                <div className="loading-text">{rendering ? renderStage : '편집 지시서 작성 중...'}</div>
               </div>
             )}
 
             {error && <div className="error-box">{error}</div>}
+
+            {renderResult && !rendering && (
+              <>
+                <div className="directive show">
+                  <div className="directive-body">
+                    <video
+                      src={renderResult.url}
+                      controls
+                      style={{ width: '100%', borderRadius: 10, background: '#000' }}
+                    />
+                    <div className="dir-section" style={{ marginTop: 16 }}>
+                      <div className="dir-sec-label">사용된 자막</div>
+                      {renderResult.plan.captions.map((c, i) => (
+                        <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                            {c.start.toFixed(1)}s ~ {c.end.toFixed(1)}s
+                          </div>
+                          <div className="caption-line">&quot;{c.text}&quot;</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="action-row">
+                  <a className="btn-secondary" href={renderResult.url} download style={{ textAlign: 'center', textDecoration: 'none' }}>
+                    ⬇ 다운로드
+                  </a>
+                  <button className="btn-reset" onClick={restart}>처음부터</button>
+                </div>
+              </>
+            )}
 
             {directive && !loadingDirective && (
               <>

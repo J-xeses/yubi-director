@@ -31,7 +31,7 @@ CapCut 초보 수준이고 혼자 촬영/편집합니다.
 }`
 
   try {
-    const parsed = await callClaude(prompt, 1000)
+    const parsed = await callClaude(prompt, 2000)
     return Response.json(parsed)
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
