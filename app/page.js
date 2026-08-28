@@ -9,6 +9,12 @@ const SOURCE_TAGS = [
 ]
 const TREATMENT_TAGS = ['이마라인 교정', '눈썹 반영구', '복합 시술', '상담/설명', '기타']
 const MOOD_TAGS = ['감동적/진솔한', '전문적/신뢰감', '밝고 활기찬', '교육적/정보형', '친근한/일상적']
+const EFFECT_LABELS = {
+  'static': '고정',
+  'zoom-in': '줌인',
+  'zoom-out': '줌아웃',
+  'slow-mo': '슬로우모션',
+}
 const BGM_LABELS = {
   'calm-piano': '잔잔한 피아노 (Emotional Piano · MondaMusic)',
   'upbeat-reel': '밝고 경쾌한 릴스 비트 (Instagram Reel · SoundSurfer)',
@@ -208,19 +214,22 @@ export default function Page() {
       if (!planRes.ok) throw new Error(plan.error || '편집 계획 생성 실패')
 
       setRenderStage('영상 합성 중... (최대 1~2분 걸려요)')
-      const renderClips = plan.clipPlan.map((p) => ({
-        url: readyClips[p.index].url,
-        duration: p.duration,
+      const renderShots = plan.shots.map((s) => ({
+        url: readyClips[s.clipIndex].url,
+        trimStart: s.trimStart,
+        duration: s.duration,
+        effect: s.effect,
       }))
       const renderRes = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clips: renderClips,
+          shots: renderShots,
           captions: plan.captions,
           bgmUrl: bgm?.url || null,
           bgmKey: bgm?.url ? null : plan.bgmKey,
           totalDuration: plan.totalDuration,
+          colorGrade: plan.colorGrade,
         }),
       })
       const rendered = await renderRes.json()
@@ -517,6 +526,19 @@ export default function Page() {
                       style={{ width: '100%', borderRadius: 10, background: '#000' }}
                     />
                     <div className="dir-section" style={{ marginTop: 16 }}>
+                      <div className="dir-sec-label">샷 구성 ({renderResult.plan.shots.length}컷)</div>
+                      <div className="dir-steps">
+                        {renderResult.plan.shots.map((s, i) => (
+                          <div className="dir-step" key={i}>
+                            <div className="dir-step-no">{i + 1}</div>
+                            <div className="dir-step-text">
+                              {s.duration.toFixed(1)}초 · {EFFECT_LABELS[s.effect] || s.effect}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="dir-section">
                       <div className="dir-sec-label">사용된 자막</div>
                       {renderResult.plan.captions.map((c, i) => (
                         <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
