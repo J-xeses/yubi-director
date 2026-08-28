@@ -19,7 +19,11 @@ function sanitizeCaptions(captions, totalDuration) {
     const start = Math.max(cap.start, result.length ? lastEnd + MIN_GAP : cap.start)
     const end = Math.min(cap.end, totalDuration || cap.end)
     if (end - start < MIN_DURATION) continue
-    result.push({ start: Number(start.toFixed(2)), end: Number(end.toFixed(2)), text: cap.text })
+    // 렌더링 시 항상 한 줄로 나오도록 줄바꿈을 공백으로 치환 — 렌더 단계에서도
+    // 같은 처리를 하지만(render/route.js), 캡션 데이터의 근본 출처인 여기서도
+    // 정리해서 다른 소비자가 이 데이터를 써도 안전하게 한다.
+    const text = String(cap.text || '').replace(/\s*\r?\n\s*/g, ' ').trim()
+    result.push({ start: Number(start.toFixed(2)), end: Number(end.toFixed(2)), text })
     lastEnd = end
   }
   return result

@@ -188,13 +188,22 @@ export async function POST(request) {
     // 한글이 깨지는 경우가 있어(spawn 인자 인코딩 이슈), UTF-8 파일에 써서
     // drawtext의 textfile= 옵션으로 읽게 한다 — 인코딩 문제와 특수문자
     // 이스케이핑 문제를 동시에 회피한다.
+    //
+    // 줄바꿈 문자가 텍스트에 섞여 들어오면(예: Claude가 긴 문장을 두 줄로
+    // 나눠 보낼 때, maxTokens를 늘린 뒤 실제로 발생 확인 - 2026-08-28) drawtext가
+    // 이걸 진짜 줄바꿈으로 해석해 두 줄을 렌더링하는데, 이 ffmpeg 빌드는 줄마다
+    // box 배경을 따로 그리면서 두 줄의 위치가 어긋나 서로 겹쳐 보이는 버그가
+    // 있다("자막이 겹쳐 보인다"는 증상의 실제 원인 — 자막 두 개가 겹치는 게
+    // 아니라 자막 하나가 줄바꿈으로 깨지는 것이었음). 자막은 항상 한 줄이어야
+    // 하므로 줄바꿈을 공백으로 치환해 원천 차단한다.
     let videoLabel = gradedVideo
     if (captions.length > 0) {
       let chain = `[${gradedVideo}]`
       for (let idx = 0; idx < captions.length; idx++) {
         const cap = captions[idx]
         const capFile = path.join(workDir, `cap${idx}.txt`)
-        await fs.writeFile(capFile, String(cap.text || ''), 'utf-8')
+        const singleLineText = String(cap.text || '').replace(/\s*\r?\n\s*/g, ' ').trim()
+        await fs.writeFile(capFile, singleLineText, 'utf-8')
         const isLast = idx === captions.length - 1
         const safeFontPath = FONT_PATH.replace(/\\/g, '/').replace(/:/g, '\\:')
         const safeCapPath = capFile.replace(/\\/g, '/').replace(/:/g, '\\:')
