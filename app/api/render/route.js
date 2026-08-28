@@ -207,7 +207,15 @@ export async function POST(request) {
         const isLast = idx === captions.length - 1
         const safeFontPath = FONT_PATH.replace(/\\/g, '/').replace(/:/g, '\\:')
         const safeCapPath = capFile.replace(/\\/g, '/').replace(/:/g, '\\:')
-        chain += `drawtext=fontfile='${safeFontPath}':textfile='${safeCapPath}':enable='between(t\\,${cap.start}\\,${cap.end})':x=(w-text_w)/2:y=h-320:fontsize=58:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=24`
+        // 줄바꿈을 막았으니 문장이 길면 한 줄로 화면 폭(1080px, 여백 감안 900px)을
+        // 넘어갈 수 있다 — 글자 수 기준으로 fontsize를 줄여 한 줄 안에 들어오게 한다
+        // (NotoSansKR-Bold 기준 한글 1자 ≈ fontsize*0.95px 실측 근사치).
+        const CAPTION_SAFE_WIDTH = 900
+        const estWidth = singleLineText.length * 58 * 0.95
+        const fontsize = estWidth > CAPTION_SAFE_WIDTH
+          ? Math.max(32, Math.floor(58 * CAPTION_SAFE_WIDTH / estWidth))
+          : 58
+        chain += `drawtext=fontfile='${safeFontPath}':textfile='${safeCapPath}':enable='between(t\\,${cap.start}\\,${cap.end})':x=(w-text_w)/2:y=h-320:fontsize=${fontsize}:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=24`
         chain += isLast ? `[vout]` : `,`
       }
       filterParts.push(chain)
