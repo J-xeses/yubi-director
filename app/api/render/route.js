@@ -1,8 +1,9 @@
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+import { spawn } from 'child_process'
 import { put } from '@vercel/blob'
-import { FFMPEG, run } from '../../../lib/media'
+import { FFMPEG, FFPROBE, run } from '../../../lib/media'
 
 export const maxDuration = 120
 
@@ -43,6 +44,27 @@ async function downloadTo(url, destPath) {
   await fs.writeFile(destPath, buf)
 }
 
+// 업로드된 파일이나 스톡 B-roll(Pexels 등)은 오디오 트랙이 아예 없는 경우가 실제로
+// 있다(예: 무음으로 촬영된 폰 영상, 무음 스톡 클립) — 이때 [i:a]로 없는 스트림을
+// 참조하면 ffmpeg가 "Stream specifier ':a' ... matches no streams"로 전체 렌더가
+// 실패한다(2026-08-28 실측: 카메라로 찍은 무음 테스트 클립에서 확인). 다운로드 직후
+// 파일별로 한 번만 확인해서, 없으면 이미지와 동일하게 무음 오디오(anullsrc)로 대체한다.
+function probeHasAudio(filePath) {
+  return new Promise((resolve) => {
+    const proc = spawn(FFPROBE, [
+      '-v', 'error',
+      '-select_streams', 'a',
+      '-show_entries', 'stream=index',
+      '-of', 'csv=p=0',
+      filePath,
+    ])
+    let out = ''
+    proc.stdout.on('data', (d) => { out += d.toString() })
+    proc.on('error', () => resolve(false))
+    proc.on('close', () => resolve(out.trim().length > 0))
+  })
+}
+
 export async function POST(request) {
   const { shots, captions = [], bgmUrl, bgmKey, totalDuration, colorGrade } = await request.json()
 
@@ -60,7 +82,9 @@ export async function POST(request) {
       const ext = extOf(shot.url)
       const dest = path.join(workDir, `src${downloaded.size}${ext}`)
       await downloadTo(shot.url, dest)
-      downloaded.set(shot.url, { path: dest, isImage: IMAGE_EXT.has(ext) })
+      const isImage = IMAGE_EXT.has(ext)
+      const hasAudio = isImage ? false : await probeHasAudio(dest)
+      downloaded.set(shot.url, { path: dest, isImage, hasAudio })
     }
 
     // 2) BGM 준비: 사용자가 직접 올린 파일이 있으면 그걸 쓰고,
@@ -138,7 +162,7 @@ export async function POST(request) {
       vChain += `[v${i}]`
       filterParts.push(vChain)
 
-      if (src.isImage) {
+      if (src.isImage || !src.hasAudio) {
         filterParts.push(`anullsrc=r=44100:cl=stereo,atrim=0:${duration}${aFadeStr}[a${i}]`)
       } else {
         let aChain = `[${inputIdx}:a]atrim=start=${trimStart}:duration=${sourceDur},asetpts=PTS-STARTPTS`
