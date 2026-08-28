@@ -1,5 +1,30 @@
 import { callClaude } from '../../../lib/anthropic'
 
+// AI가 "자막끼리 겹치지 않게"라는 프롬프트 지시를 지키지 않고 겹치는 시간대를
+// 반환하는 경우가 실제로 관측됨(2026-08-28) — 프롬프트만 믿지 않고 서버에서
+// 강제로 겹침을 제거한다. 시작 시각 순으로 정렬한 뒤, 이전 자막이 끝나기 전에
+// 시작하는 자막은 뒤로 밀고, 그 결과 노출 시간이 너무 짧아지면(0.3초 미만) 버린다.
+function sanitizeCaptions(captions, totalDuration) {
+  if (!Array.isArray(captions)) return []
+  const MIN_GAP = 0.05
+  const MIN_DURATION = 0.3
+
+  const sorted = captions
+    .filter(c => c && typeof c.start === 'number' && typeof c.end === 'number' && c.end > c.start && c.text)
+    .sort((a, b) => a.start - b.start)
+
+  const result = []
+  let lastEnd = 0
+  for (const cap of sorted) {
+    const start = Math.max(cap.start, result.length ? lastEnd + MIN_GAP : cap.start)
+    const end = Math.min(cap.end, totalDuration || cap.end)
+    if (end - start < MIN_DURATION) continue
+    result.push({ start: Number(start.toFixed(2)), end: Number(end.toFixed(2)), text: cap.text })
+    lastEnd = end
+  }
+  return result
+}
+
 export async function POST(request) {
   const { proposal, sourceText, treatment, clips } = await request.json()
 
@@ -38,6 +63,7 @@ ${clipList}
 
   try {
     const parsed = await callClaude(prompt, 2000)
+    parsed.captions = sanitizeCaptions(parsed.captions, parsed.totalDuration)
     return Response.json(parsed)
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
