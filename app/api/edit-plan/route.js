@@ -108,7 +108,7 @@ ${clipList}
 }`
 
   try {
-    const parsed = await callClaude(prompt, 4096)
+    const parsed = await callClaude(prompt, 8000)
     parsed.shots = sanitizeShots(parsed.shots, clips)
     if (parsed.shots.length === 0) {
       return Response.json({ error: 'AI가 유효한 편집 계획을 만들지 못했습니다. 다시 시도해주세요.' }, { status: 500 })
