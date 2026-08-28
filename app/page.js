@@ -6,6 +6,7 @@ import { upload } from '@vercel/blob/client'
 const SOURCE_TAGS = [
   '시술 전 사진/영상', '시술 중 클로즈업', '시술 후 결과', '고객 반응',
   '거울 확인 장면', '손/도구 클로즈업', 'Before/After 사진', '유비 설명 셀카',
+  '스톡 B-roll(검색)',
 ]
 const TREATMENT_TAGS = ['이마라인 교정', '눈썹 반영구', '복합 시술', '상담/설명', '기타']
 const MOOD_TAGS = ['감동적/진솔한', '전문적/신뢰감', '밝고 활기찬', '교육적/정보형', '친근한/일상적']
@@ -60,8 +61,16 @@ export default function Page() {
   const [mood, setMood] = useState('')
 
   // 업로드된 소스 클립: { id, file, label, isImage, duration, url, status }
+  // 스톡 검색으로 추가된 클립은 file 없이 { id, label, isImage, duration, url,
+  // status:'done', source:'stock', photographer }로 같은 배열에 들어간다 —
+  // runAutoEdit()은 소스 구분 없이 clips 배열을 그대로 사용하므로 별도 처리 불필요.
   const [clips, setClips] = useState([])
   const [bgm, setBgm] = useState(null) // { file, url, status }
+
+  const [stockQuery, setStockQuery] = useState('')
+  const [stockResults, setStockResults] = useState([])
+  const [stockSearching, setStockSearching] = useState(false)
+  const [stockError, setStockError] = useState('')
 
   const [loadingProposals, setLoadingProposals] = useState(false)
   const [proposals, setProposals] = useState([])
@@ -124,6 +133,36 @@ export default function Page() {
 
   function updateClipLabel(id, label) {
     setClips((prev) => prev.map((c) => (c.id === id ? { ...c, label } : c)))
+  }
+
+  async function searchStock() {
+    if (!stockQuery.trim()) return
+    setStockSearching(true)
+    setStockError('')
+    try {
+      const res = await fetch(`/api/source-search?q=${encodeURIComponent(stockQuery.trim())}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '검색 실패')
+      setStockResults(data.results || [])
+    } catch (e) {
+      setStockError(e.message)
+      setStockResults([])
+    } finally {
+      setStockSearching(false)
+    }
+  }
+
+  function addStockClip(result) {
+    setClips((prev) => [...prev, {
+      id: nextClipId++,
+      label: '스톡 B-roll(검색)',
+      isImage: result.type === 'image',
+      duration: result.duration || 3,
+      url: result.downloadUrl,
+      status: 'done',
+      source: 'stock',
+      photographer: result.photographer,
+    }])
   }
 
   function removeClip(id) {
@@ -334,7 +373,7 @@ export default function Page() {
                   {clips.map((c) => (
                     <div key={c.id} className="dir-step" style={{ alignItems: 'center' }}>
                       <div style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>
-                        {c.file.name}
+                        {c.source === 'stock' ? `Pexels · ${c.photographer || '스톡 영상'}` : c.file.name}
                         {c.status === 'uploading' && <span style={{ color: 'var(--text-muted)' }}> · 업로드 중...</span>}
                         {c.status === 'error' && <span style={{ color: 'var(--rose)' }}> · 업로드 실패</span>}
                         {c.status === 'done' && !c.isImage && c.duration && (
@@ -352,6 +391,50 @@ export default function Page() {
                         {SOURCE_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
                       <button className="btn-reset" style={{ padding: '4px 10px' }} onClick={() => removeClip(c.id)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="tag-group">
+              <div className="tag-label">추가 소스 검색 (선택 — 직접 찍은 게 부족하면 스톡 B-roll로 채워드려요)</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="예: skincare closeup, eyebrow makeup"
+                  value={stockQuery}
+                  onChange={(e) => setStockQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && searchStock()}
+                  style={{
+                    flex: 1, background: 'var(--surface2)', color: 'var(--text)',
+                    border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, padding: '8px 10px',
+                  }}
+                />
+                <button className="btn-secondary" onClick={searchStock} disabled={stockSearching}>
+                  {stockSearching ? '검색 중...' : '검색'}
+                </button>
+              </div>
+              {stockError && <div className="error-box" style={{ marginTop: 8 }}>{stockError}</div>}
+              {stockResults.length > 0 && (
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                  gap: 8, marginTop: 12,
+                }}>
+                  {stockResults.map((r) => (
+                    <div key={r.id} style={{ position: 'relative' }}>
+                      <img
+                        src={r.thumbnail}
+                        alt={r.title}
+                        style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8 }}
+                      />
+                      <button
+                        className="btn-primary"
+                        style={{ position: 'absolute', bottom: 6, left: 6, right: 6, padding: '4px 0', fontSize: 12 }}
+                        onClick={() => addStockClip(r)}
+                      >
+                        + 추가
+                      </button>
                     </div>
                   ))}
                 </div>
