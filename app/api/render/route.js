@@ -4,6 +4,7 @@ import path from 'path'
 import { spawn } from 'child_process'
 import { put } from '@vercel/blob'
 import { FFMPEG, FFPROBE, run } from '../../../lib/media'
+import { renderAnnotationPNG, measureCaptionWidth } from '../../../lib/handwriting'
 
 export const maxDuration = 120
 
@@ -66,7 +67,16 @@ function probeHasAudio(filePath) {
 }
 
 export async function POST(request) {
-  const { shots, captions = [], bgmUrl, bgmKey, totalDuration, colorGrade } = await request.json()
+  const {
+    shots, captions = [], bgmUrl, bgmKey, totalDuration, colorGrade,
+    annotations = [], bgmVolume,
+  } = await request.json()
+
+  // 손글씨 주석: { text, start, end, position, bubble, color, deco, arrow, arrowDir }
+  const anns = (Array.isArray(annotations) ? annotations : [])
+    .filter((a) => a && String(a.text || '').trim())
+    .slice(0, 8)
+  const bgmVol = Math.max(0, Math.min(1, Number(bgmVolume) > 0 ? Number(bgmVolume) : 0.18))
 
   if (!Array.isArray(shots) || shots.length === 0) {
     return Response.json({ error: '샷이 없습니다.' }, { status: 400 })
@@ -208,13 +218,15 @@ export async function POST(request) {
         const safeFontPath = FONT_PATH.replace(/\\/g, '/').replace(/:/g, '\\:')
         const safeCapPath = capFile.replace(/\\/g, '/').replace(/:/g, '\\:')
         // 줄바꿈을 막았으니 문장이 길면 한 줄로 화면 폭(1080px, 여백 감안 900px)을
-        // 넘어갈 수 있다 — 글자 수 기준으로 fontsize를 줄여 한 줄 안에 들어오게 한다
-        // (NotoSansKR-Bold 기준 한글 1자 ≈ fontsize*0.95px 실측 근사치).
+        // 넘어갈 수 있다 — canvas로 실제 폭을 재서 fontsize를 줄여 한 줄 안에 들어오게 한다
+        // (기존엔 글자 수 * 상수로 추정했는데 영문/숫자/공백이 섞이면 오차가 컸음).
         const CAPTION_SAFE_WIDTH = 900
-        const estWidth = singleLineText.length * 58 * 0.95
-        const fontsize = estWidth > CAPTION_SAFE_WIDTH
-          ? Math.max(32, Math.floor(58 * CAPTION_SAFE_WIDTH / estWidth))
-          : 58
+        const BASE_FS = 58
+        let realWidth = BASE_FS
+        try { realWidth = measureCaptionWidth(singleLineText, BASE_FS) } catch { realWidth = singleLineText.length * BASE_FS * 0.95 }
+        const fontsize = realWidth > CAPTION_SAFE_WIDTH
+          ? Math.max(32, Math.floor(BASE_FS * CAPTION_SAFE_WIDTH / realWidth))
+          : BASE_FS
         chain += `drawtext=fontfile='${safeFontPath}':textfile='${safeCapPath}':enable='between(t\\,${cap.start}\\,${cap.end})':x=(w-text_w)/2:y=h-320:fontsize=${fontsize}:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=24`
         chain += isLast ? `[vout]` : `,`
       }
@@ -228,10 +240,36 @@ export async function POST(request) {
       const bgmIndex = shots.length
       inputArgs.push('-stream_loop', '-1', '-i', bgmPath)
       filterParts.push(
-        `[${bgmIndex}:a]atrim=0:${totalDuration},asetpts=PTS-STARTPTS,volume=0.18[bgmtrim]`,
+        `[${bgmIndex}:a]atrim=0:${totalDuration},asetpts=PTS-STARTPTS,volume=${bgmVol}[bgmtrim]`,
         `[${joinedAudio}][bgmtrim]amix=inputs=2:duration=first:dropout_transition=0[amixed]`
       )
       audioLabel = 'amixed'
+    }
+
+    // 6-b) 손글씨 주석 오버레이 — 각 씬을 투명 PNG로 그려(@napi-rs/canvas) 입력으로 넣고
+    //      해당 시간대에만 overlay한다. BGM 다음 인덱스부터.
+    if (anns.length > 0) {
+      let annBase = shots.length + (bgmPath ? 1 : 0)
+      let prev = videoLabel
+      for (let k = 0; k < anns.length; k++) {
+        const a = anns[k]
+        const png = path.join(workDir, `ann${k}.png`)
+        await fs.writeFile(png, renderAnnotationPNG({
+          text: a.text, position: a.position, bubble: a.bubble, color: a.color,
+          deco: Array.isArray(a.deco) ? a.deco : String(a.deco || '').split(',').map((s) => s.trim()).filter(Boolean),
+          arrow: !!a.arrow, arrowDir: a.arrowDir || a.arrow_direction,
+        }))
+        // -loop 1 이미지는 무한 입력이라 -t로 바운드하지 않으면 filtergraph가 끝나지 않는다.
+        inputArgs.push('-loop', '1', '-t', String(Math.max(1, Number(totalDuration) || 30)), '-i', png)
+        const s = Math.max(0, Number(a.start) || 0)
+        const e = Math.max(s + 0.1, Number(a.end) || (s + 3))
+        const out = k === anns.length - 1 ? 'vfinal' : `vann${k}`
+        filterParts.push(
+          `[${prev}][${annBase + k}:v]overlay=0:0:enable='between(t\\,${s}\\,${e})'[${out}]`
+        )
+        prev = out
+      }
+      videoLabel = 'vfinal'
     }
 
     const outPath = path.join(workDir, 'output.mp4')
@@ -243,7 +281,7 @@ export async function POST(request) {
       '-map', `[${audioLabel}]`,
       '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'veryfast',
       '-c:a', 'aac', '-b:a', '128k',
-      '-r', String(FPS),
+      '-r', String(FPS), '-g', '60', '-movflags', '+faststart',
       outPath,
     ]
 

@@ -31,6 +31,44 @@ function sanitizeCaptions(captions, totalDuration) {
 
 const VALID_EFFECTS = new Set(['static', 'zoom-in', 'zoom-out', 'slow-mo'])
 const VALID_GRADES = new Set(['warm', 'cool', 'moody', 'vivid', 'neutral'])
+const VALID_ANN_POS = new Set([
+  'top_center', 'top_left', 'top_right', 'center', 'bottom_center', 'bottom_left', 'bottom_right',
+])
+const VALID_ANN_BUBBLE = new Set(['none', 'cloud', 'oval', 'arrow_box'])
+const VALID_ANN_COLOR = new Set(['white', 'pink', 'lavender'])
+const VALID_ANN_ARROW_DIR = new Set(['up', 'down', 'left', 'right'])
+
+// 손글씨 오버레이(annotations): AI가 강조하고 싶은 순간 몇 군데에 손글씨 주석을 얹는다.
+// caption/shot과 같은 이유로 서버에서 enum 검증 + 타임라인 범위 클램프를 강제한다.
+function sanitizeAnnotations(annotations, totalDuration) {
+  if (!Array.isArray(annotations)) return []
+  return annotations
+    .filter((a) => a && String(a.text || '').trim())
+    .slice(0, 4)
+    .map((a) => {
+      let start = Math.max(0, Number(a.start) || 0)
+      let end = Number(a.end) || start + 2.5
+      if (totalDuration && end > totalDuration) end = totalDuration
+      if (end - start < 0.5) end = Math.min(totalDuration || end + 2, start + 2)
+      const decoRaw = Array.isArray(a.deco)
+        ? a.deco
+        : String(a.deco || '').split(',').map((s) => s.trim()).filter(Boolean)
+      return {
+        text: String(a.text).replace(/\s*\r?\n\s*/g, ' ').trim().slice(0, 40),
+        start: Number(start.toFixed(2)),
+        end: Number(end.toFixed(2)),
+        position: VALID_ANN_POS.has(a.position) ? a.position : 'top_center',
+        bubble: VALID_ANN_BUBBLE.has(a.bubble) ? a.bubble : 'cloud',
+        color: VALID_ANN_COLOR.has(a.color) ? a.color : 'white',
+        deco: decoRaw.slice(0, 3).map(String),
+        arrow: !!a.arrow,
+        arrowDir: VALID_ANN_ARROW_DIR.has(a.arrowDir || a.arrow_direction)
+          ? (a.arrowDir || a.arrow_direction)
+          : 'down',
+      }
+    })
+    .filter((a) => a.text && a.end > a.start)
+}
 
 // caption과 같은 이유로, AI가 원본 클립 길이를 넘는 trimStart/duration을 주거나
 // 없는 clipIndex를 참조하는 경우가 있을 수 있어 서버에서 클램프/필터링한다.
@@ -101,11 +139,22 @@ ${clipList}
   - "upbeat-reel": 밝고 경쾌한 릴스 비트, 활기찬 톤
   - "trust-corporate": 차분하고 신뢰감 있는 톤, 전문적/정보형
 - colorGrade는 분위기에 맞게 하나 고르세요: "warm"(따뜻한 톤), "cool"(차분한 블루톤), "moody"(무게감 있는 저채도), "vivid"(선명하고 발랄함), "neutral"(자연스럽게 살짝만 보정)
+- "annotations"는 손으로 쓴 듯한 손글씨 주석입니다. 자막과 별개로, 영상에서 가장 강조하고 싶은
+  순간 1~3군데에만 짧게(최대 12자) 얹으세요. 후킹 문구, 반전 포인트, 마지막 CTA 등에 적합합니다.
+  없어도 되면 빈 배열로 두세요. 각 항목:
+  - text: 손글씨 문구 (짧고 강하게, 최대 12자)
+  - start / end: 전체 타임라인 기준 노출 시각(초). 자막과 겹쳐도 됩니다.
+  - position: "top_center" | "top_left" | "top_right" | "center" | "bottom_center" | "bottom_left" | "bottom_right"
+  - bubble: "cloud"(구름 말풍선) | "oval"(동그란 말풍선) | "arrow_box"(각진 말풍선) | "none"(말풍선 없음)
+  - color: "white" | "pink" | "lavender"
+  - deco: 장식 글자 배열, 예 ["♡","✦"] (없으면 [])
+  - arrow: true면 화살표 표시, arrowDir: "up" | "down" | "left" | "right"
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
   "shots": [ { "clipIndex": 0, "trimStart": 0, "duration": 3.0, "effect": "zoom-in" } ],
   "captions": [ { "start": 0, "end": 2.5, "text": "자막 문구" } ],
+  "annotations": [ { "text": "이거 실화?", "start": 1.0, "end": 4.0, "position": "top_center", "bubble": "cloud", "color": "white", "deco": ["✦"], "arrow": false } ],
   "totalDuration": 15.0,
   "bgmKey": "calm-piano",
   "colorGrade": "warm"
@@ -119,6 +168,7 @@ ${clipList}
     }
     parsed.totalDuration = Number(parsed.shots.reduce((sum, s) => sum + s.duration, 0).toFixed(2))
     parsed.captions = sanitizeCaptions(parsed.captions, parsed.totalDuration)
+    parsed.annotations = sanitizeAnnotations(parsed.annotations, parsed.totalDuration)
     if (!VALID_GRADES.has(parsed.colorGrade)) parsed.colorGrade = 'neutral'
     return Response.json(parsed)
   } catch (e) {

@@ -16,6 +16,13 @@ const EFFECT_LABELS = {
   'zoom-out': '줌아웃',
   'slow-mo': '슬로우모션',
 }
+const ANN_POS_LABELS = {
+  top_center: '상단 중앙', top_left: '상단 왼쪽', top_right: '상단 오른쪽',
+  center: '중앙', bottom_center: '하단 중앙', bottom_left: '하단 왼쪽', bottom_right: '하단 오른쪽',
+}
+const ANN_BUBBLE_LABELS = {
+  none: '말풍선 없음', cloud: '구름 말풍선', oval: '동그란 말풍선', arrow_box: '각진 말풍선',
+}
 const BGM_LABELS = {
   'calm-piano': '잔잔한 피아노 (Emotional Piano · MondaMusic)',
   'upbeat-reel': '밝고 경쾌한 릴스 비트 (Instagram Reel · SoundSurfer)',
@@ -265,6 +272,7 @@ export default function Page() {
         body: JSON.stringify({
           shots: renderShots,
           captions: plan.captions,
+          annotations: plan.annotations || [],
           bgmUrl: bgm?.url || null,
           bgmKey: bgm?.url ? null : plan.bgmKey,
           totalDuration: plan.totalDuration,
@@ -632,6 +640,20 @@ export default function Page() {
                         </div>
                       ))}
                     </div>
+                    {renderResult.plan.annotations && renderResult.plan.annotations.length > 0 && (
+                      <div className="dir-section">
+                        <div className="dir-sec-label">손글씨 주석 ({renderResult.plan.annotations.length}개)</div>
+                        {renderResult.plan.annotations.map((a, i) => (
+                          <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                              {a.start.toFixed(1)}s ~ {a.end.toFixed(1)}s · {ANN_POS_LABELS[a.position] || a.position} · {ANN_BUBBLE_LABELS[a.bubble] || a.bubble}
+                              {a.arrow ? ' · 화살표' : ''}
+                            </div>
+                            <div className="caption-line">✍ &quot;{a.text}&quot;</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="dir-section">
                       <div className="dir-sec-label">사용된 BGM</div>
                       <div className="dir-step">
