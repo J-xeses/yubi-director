@@ -48,12 +48,20 @@ function probeVideoDuration(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file)
     const v = document.createElement('video')
-    v.preload = 'metadata'
-    v.onloadedmetadata = () => {
-      resolve(v.duration || null)
+    let done = false
+    // metadata 로드가 끝나지 않는 코덱/환경(예: HEVC 미지원, 백그라운드 탭 미디어
+    // 로딩 중단)에서 onloadedmetadata·onerror 둘 다 안 불리면 업로드가 영영 시작
+    // 안 되고 "업로드 중..."에 멈춘다 — 타임아웃으로 무조건 매듭짓는다.
+    const finish = (dur) => {
+      if (done) return
+      done = true
       URL.revokeObjectURL(url)
+      resolve(dur)
     }
-    v.onerror = () => { resolve(null); URL.revokeObjectURL(url) }
+    v.preload = 'metadata'
+    v.onloadedmetadata = () => finish(v.duration || null)
+    v.onerror = () => finish(null)
+    setTimeout(() => finish(null), 8000)
     v.src = url
   })
 }
