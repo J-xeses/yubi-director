@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { upload } from '@vercel/blob/client'
+import { drawAnnotationPreview } from '../lib/handwriting-preview'
 
 const SOURCE_TAGS = [
   '시술 전 사진/영상', '시술 중 클로즈업', '시술 후 결과', '고객 반응',
@@ -76,6 +77,51 @@ const annFieldStyle = {
 }
 const annLabelStyle = { fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }
 
+// 업로드/스톡 소스 클립의 작은 미리보기 (목록에서 어떤 소스인지 눈으로 확인)
+function ClipThumb({ clip }) {
+  const box = {
+    width: 48, height: 48, borderRadius: 8, flexShrink: 0, objectFit: 'cover',
+    background: 'var(--surface2)', border: '1px solid var(--border)',
+  }
+  if (!clip.previewUrl) {
+    return <div style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{clip.isImage ? '🖼️' : '🎬'}</div>
+  }
+  if (clip.isImage) {
+    return <img src={clip.previewUrl} alt="" style={box} />
+  }
+  return <video src={clip.previewUrl} muted playsInline preload="metadata" style={box} />
+}
+
+// 손글씨 주석 실시간 미리보기 — lib/handwriting-preview.js(브라우저 canvas)로 그린다.
+function AnnotationPreview({ scene }) {
+  const ref = useRef(null)
+  const key = JSON.stringify({
+    t: scene.text || '', b: scene.bubble, c: scene.color,
+    d: scene.deco, p: scene.position, a: scene.arrow, ad: scene.arrowDir,
+  })
+  useEffect(() => {
+    let cancelled = false
+    const paint = () => { if (!cancelled && ref.current) drawAnnotationPreview(ref.current, scene) }
+    paint()
+    // 웹폰트가 늦게 로드되면 한 번 더 그린다
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+      document.fonts.load('700 64px "Noto Sans KR"').then(paint).catch(() => {})
+    }
+    return () => { cancelled = true }
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <canvas
+      ref={ref}
+      width={150}
+      height={267}
+      style={{
+        width: 150, height: 267, borderRadius: 8, flexShrink: 0,
+        border: '1px solid var(--border)', background: '#777',
+      }}
+    />
+  )
+}
+
 // 손글씨 주석 편집기 — 표현 유형(프리셋)으로 1차 선택 후 각 항목을 미세 조정.
 function AnnotationEditor({ annotations, totalDuration, onChange }) {
   const list = Array.isArray(annotations) ? annotations : []
@@ -111,7 +157,8 @@ function AnnotationEditor({ annotations, totalDuration, onChange }) {
       )}
 
       {list.map((a, i) => (
-        <div key={i} className="caption-box" style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div key={i} className="caption-box" style={{ marginBottom: 10, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <input
               type="text"
@@ -206,6 +253,11 @@ function AnnotationEditor({ annotations, totalDuration, onChange }) {
                 </select>
               )}
             </div>
+          </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+            <AnnotationPreview scene={a} />
+            <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>미리보기</span>
           </div>
         </div>
       ))}
@@ -372,6 +424,8 @@ export default function Page() {
       isImage: file.type.startsWith('image/'),
       duration: file.type.startsWith('image/') ? 2.5 : null,
       url: null,
+      // 업로드한 원본을 목록에서 바로 미리보게 (로컬 objectURL, 제거 시 revoke)
+      previewUrl: typeof URL !== 'undefined' ? URL.createObjectURL(file) : null,
       status: 'uploading',
     }))
     setClips((prev) => [...prev, ...entries])
@@ -432,6 +486,7 @@ export default function Page() {
       isImage: result.type === 'image',
       duration: result.duration || 3,
       url: result.downloadUrl,
+      previewUrl: result.thumbnail || result.downloadUrl,
       status: 'done',
       source: 'stock',
       photographer: result.photographer,
@@ -439,7 +494,13 @@ export default function Page() {
   }
 
   function removeClip(id) {
-    setClips((prev) => prev.filter((c) => c.id !== id))
+    setClips((prev) => {
+      const gone = prev.find((c) => c.id === id)
+      if (gone?.previewUrl && gone.file && typeof URL !== 'undefined') {
+        try { URL.revokeObjectURL(gone.previewUrl) } catch {}
+      }
+      return prev.filter((c) => c.id !== id)
+    })
   }
 
   async function generateProposals() {
@@ -678,8 +739,11 @@ export default function Page() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
                   {clips.map((c) => (
                     <div key={c.id} className="dir-step" style={{ alignItems: 'center' }}>
-                      <div style={{ flex: 1, fontSize: 13, color: 'var(--text)' }}>
-                        {c.source === 'stock' ? `Pexels · ${c.photographer || '스톡 영상'}` : c.file.name}
+                      <ClipThumb clip={c} />
+                      <div style={{ flex: 1, fontSize: 13, color: 'var(--text)', minWidth: 0 }}>
+                        <span style={{ wordBreak: 'break-all' }}>
+                          {c.source === 'stock' ? `Pexels · ${c.photographer || '스톡 영상'}` : c.file.name}
+                        </span>
                         {c.status === 'uploading' && <span style={{ color: 'var(--text-muted)' }}> · 업로드 중...</span>}
                         {c.status === 'error' && <span style={{ color: 'var(--rose)' }}> · 업로드 실패</span>}
                         {c.status === 'done' && !c.isImage && c.duration && (
