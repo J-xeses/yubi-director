@@ -77,6 +77,59 @@ const annFieldStyle = {
 }
 const annLabelStyle = { fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }
 
+// 영상 URL에서 지정 시각의 프레임을 뽑아 dataURL로 (Vercel Blob은 CORS 개방)
+function useVideoFrame(url, time, w = 132, h = 234) {
+  const [dataUrl, setDataUrl] = useState(null)
+  useEffect(() => {
+    setDataUrl(null)
+    if (!url || typeof document === 'undefined') return
+    let cancelled = false
+    const v = document.createElement('video')
+    v.crossOrigin = 'anonymous'
+    v.muted = true
+    v.preload = 'auto'
+    v.playsInline = true
+    const cleanup = () => { v.removeAttribute('src'); v.load() }
+    const capture = () => {
+      if (cancelled) return
+      try {
+        const cv = document.createElement('canvas')
+        cv.width = w; cv.height = h
+        const ctx = cv.getContext('2d')
+        const vr = v.videoWidth / v.videoHeight, cr = w / h
+        let sw = v.videoWidth, sh = v.videoHeight, sx = 0, sy = 0
+        if (vr > cr) { sw = sh * cr; sx = (v.videoWidth - sw) / 2 }
+        else { sh = sw / cr; sy = (v.videoHeight - sh) / 2 }
+        ctx.drawImage(v, sx, sy, sw, sh, 0, 0, w, h)
+        if (!cancelled) setDataUrl(cv.toDataURL('image/jpeg', 0.72))
+      } catch { if (!cancelled) setDataUrl(null) }
+      cleanup()
+    }
+    v.addEventListener('loadeddata', () => {
+      try { v.currentTime = Math.min(Math.max(0, time || 0), (v.duration || 1) - 0.05) } catch { capture() }
+    })
+    v.addEventListener('seeked', capture)
+    v.addEventListener('error', () => { if (!cancelled) setDataUrl(null); cleanup() })
+    v.src = url
+    return () => { cancelled = true; cleanup() }
+  }, [url, time, w, h])
+  return dataUrl
+}
+
+// 검토 화면 — 각 컷의 대표 프레임 썸네일
+function ShotThumb({ clip, trimStart }) {
+  const isImg = !!clip?.isImage
+  const imgSrc = clip?.previewUrl || clip?.url || null
+  const frame = useVideoFrame(isImg ? null : (clip?.url || null), trimStart, 132, 234)
+  const box = {
+    width: 44, height: 78, borderRadius: 6, flexShrink: 0, objectFit: 'cover',
+    background: 'var(--surface2)', border: '1px solid var(--border)',
+  }
+  if (isImg && imgSrc) return <img src={imgSrc} alt="" style={box} />
+  if (frame) return <img src={frame} alt="" style={box} />
+  return <div style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>🎬</div>
+}
+
 // 업로드/스톡 소스 클립의 작은 미리보기 (목록에서 어떤 소스인지 눈으로 확인)
 function ClipThumb({ clip }) {
   const box = {
@@ -276,14 +329,23 @@ function PlanDetails({ plan, bgm, onAnnotationsChange }) {
           샷 구성 ({plan.shots.length}컷 · 총 {Number(plan.totalDuration || 0).toFixed(1)}초)
         </div>
         <div className="dir-steps">
-          {plan.shots.map((s, i) => (
-            <div className="dir-step" key={i}>
-              <div className="dir-step-no">{i + 1}</div>
-              <div className="dir-step-text">
-                {s.duration.toFixed(1)}초 · {EFFECT_LABELS[s.effect] || s.effect}
+          {plan.shots.map((s, i) => {
+            const clip = (plan._clips || [])[s.clipIndex]
+            return (
+              <div className="dir-step" key={i} style={{ alignItems: 'center' }}>
+                <div className="dir-step-no">{i + 1}</div>
+                {clip && <ShotThumb clip={clip} trimStart={s.trimStart} />}
+                <div className="dir-step-text">
+                  {s.duration.toFixed(1)}초 · {EFFECT_LABELS[s.effect] || s.effect}
+                  {clip && (
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                      {' '}· {clip.source === 'stock' ? 'Pexels' : (clip.label || '소스')}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
       <div className="dir-section">
@@ -391,6 +453,8 @@ export default function Page() {
   const [stockResults, setStockResults] = useState([])
   const [stockSearching, setStockSearching] = useState(false)
   const [stockError, setStockError] = useState('')
+  const [stockType, setStockType] = useState('video') // 'video'=B-roll, 'image'=분위기 참고
+  const [lightbox, setLightbox] = useState(null) // 크게 보기: { src, link }
 
   const [loadingProposals, setLoadingProposals] = useState(false)
   const [proposals, setProposals] = useState([])
@@ -408,6 +472,24 @@ export default function Page() {
   const [rendering, setRendering] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+
+  // 지난 제작물 (참고/재활용)
+  const [pastOpen, setPastOpen] = useState(false)
+  const [pastRenders, setPastRenders] = useState(null) // null=미로드, []=없음
+
+  async function togglePast() {
+    const next = !pastOpen
+    setPastOpen(next)
+    if (next && pastRenders === null) {
+      try {
+        const res = await fetch('/api/recent-renders')
+        const data = await res.json()
+        setPastRenders(Array.isArray(data.items) ? data.items : [])
+      } catch {
+        setPastRenders([])
+      }
+    }
+  }
 
   function toggleSourceTag(tag) {
     setSourceTags((prev) =>
@@ -467,7 +549,7 @@ export default function Page() {
     setStockSearching(true)
     setStockError('')
     try {
-      const res = await fetch(`/api/source-search?q=${encodeURIComponent(stockQuery.trim())}`)
+      const res = await fetch(`/api/source-search?q=${encodeURIComponent(stockQuery.trim())}&type=${stockType}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '검색 실패')
       setStockResults(data.results || [])
@@ -683,6 +765,8 @@ export default function Page() {
     setPlanLoading(false)
     setRenderResult(null)
     setError('')
+    setStockResults([])
+    setLightbox(null)
   }
 
   const hasClips = clips.some((c) => c.status === 'done')
@@ -768,7 +852,13 @@ export default function Page() {
             </div>
 
             <div className="tag-group">
-              <div className="tag-label">추가 소스 검색 (선택 — 직접 찍은 게 부족하면 스톡 B-roll로 채워드려요)</div>
+              <div className="tag-label">추가 소스 검색 (B-roll 채우기 · 분위기 참고)</div>
+              <div className="tags" style={{ marginBottom: 8 }}>
+                <button className={`tag${stockType === 'video' ? ' on' : ''}`}
+                  onClick={() => { setStockType('video'); setStockResults([]) }}>영상 (B-roll)</button>
+                <button className={`tag${stockType === 'image' ? ' on' : ''}`}
+                  onClick={() => { setStockType('image'); setStockResults([]) }}>사진 (분위기 참고)</button>
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   type="text"
@@ -796,17 +886,23 @@ export default function Page() {
                       <img
                         src={r.thumbnail}
                         alt={r.title}
-                        style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8 }}
+                        onClick={() => setLightbox({ src: r.downloadUrl && r.type === 'image' ? r.downloadUrl : r.thumbnail, link: r.pexelsUrl })}
+                        style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8, cursor: 'zoom-in' }}
                       />
                       <button
                         className="btn-primary"
                         style={{ position: 'absolute', bottom: 6, left: 6, right: 6, padding: '4px 0', fontSize: 12 }}
                         onClick={() => addStockClip(r)}
                       >
-                        + 추가
+                        {stockType === 'image' ? '+ 소스로 추가' : '+ 추가'}
                       </button>
                     </div>
                   ))}
+                </div>
+              )}
+              {stockType === 'image' && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                  썸네일을 누르면 크게 볼 수 있어요. 참고만 하고 안 넣어도 됩니다.
                 </div>
               )}
             </div>
@@ -896,6 +992,45 @@ export default function Page() {
 
             <div className="tip-box">
               <strong>💡 팁:</strong> 완벽하게 설명 안 해도 돼요. &quot;클로즈업 찍었는데 흔들렸어요&quot; 같은 것도 OK — 그것도 연출에 반영해드려요.
+            </div>
+
+            <div className="tag-group" style={{ marginTop: 20 }}>
+              <button
+                className="btn-secondary"
+                onClick={togglePast}
+                style={{ width: '100%' }}
+              >
+                {pastOpen ? '▲ 지난 제작물 닫기' : '▼ 지난 제작물 보기 (참고 / 재활용)'}
+              </button>
+              {pastOpen && (
+                <div style={{ marginTop: 12 }}>
+                  {pastRenders === null && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>불러오는 중...</div>
+                  )}
+                  {pastRenders && pastRenders.length === 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>아직 제작물이 없어요.</div>
+                  )}
+                  {pastRenders && pastRenders.length > 0 && (
+                    <div style={{
+                      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8,
+                    }}>
+                      {pastRenders.map((r) => (
+                        <a key={r.url} href={r.url} target="_blank" rel="noreferrer"
+                          style={{ textDecoration: 'none' }}>
+                          <video
+                            src={r.url + '#t=1'}
+                            muted playsInline preload="metadata"
+                            style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8, background: '#000', border: '1px solid var(--border)' }}
+                          />
+                          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, textAlign: 'center' }}>
+                            {new Date(r.uploadedAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1101,6 +1236,27 @@ export default function Page() {
           </div>
         )}
       </div>
+
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+        >
+          <img src={lightbox.src} alt="" style={{ maxWidth: '100%', maxHeight: '82vh', borderRadius: 10 }} />
+          <div style={{ marginTop: 10, display: 'flex', gap: 10 }}>
+            {lightbox.link && (
+              <a href={lightbox.link} target="_blank" rel="noreferrer" className="btn-secondary"
+                onClick={(e) => e.stopPropagation()} style={{ textDecoration: 'none' }}>
+                Pexels에서 보기 ↗
+              </a>
+            )}
+            <button className="btn-reset" onClick={() => setLightbox(null)}>닫기</button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
