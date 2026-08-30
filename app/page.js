@@ -735,7 +735,7 @@ export default function Page() {
       const rendered = await renderRes.json()
       if (!renderRes.ok) throw new Error(rendered.error || '영상 합성 실패')
 
-      setRenderResult({ url: rendered.url, plan })
+      setRenderResult({ url: rendered.url, posterUrl: rendered.posterUrl || null, plan })
     } catch (e) {
       setError(`영상 합성 실패: ${e.message}`)
     } finally {
@@ -1032,11 +1032,16 @@ export default function Page() {
                       {pastRenders.map((r) => (
                         <a key={r.url} href={r.url} target="_blank" rel="noreferrer"
                           style={{ textDecoration: 'none' }}>
-                          <VideoPoster
-                            url={r.url}
-                            time={1}
-                            style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8, background: '#000', border: '1px solid var(--border)', cursor: 'pointer' }}
-                          />
+                          {r.poster ? (
+                            <img src={r.poster} alt=""
+                              style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8, background: '#000', border: '1px solid var(--border)', cursor: 'pointer' }} />
+                          ) : (
+                            <VideoPoster
+                              url={r.url}
+                              time={1}
+                              style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8, background: '#000', border: '1px solid var(--border)', cursor: 'pointer' }}
+                            />
+                          )}
                           <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, textAlign: 'center' }}>
                             {new Date(r.uploadedAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
                           </div>
@@ -1173,6 +1178,7 @@ export default function Page() {
                   <div className="directive-body">
                     <video
                       src={renderResult.url}
+                      poster={renderResult.posterUrl || undefined}
                       controls
                       style={{ width: '100%', borderRadius: 10, background: '#000' }}
                     />

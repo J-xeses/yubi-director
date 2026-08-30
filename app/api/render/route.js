@@ -287,14 +287,25 @@ export async function POST(request) {
 
     await run(FFMPEG, ffArgs)
 
-    // 7) 결과 업로드
+    // 7) 결과 업로드 (+ 포스터 프레임 — 목록/참고용 썸네일)
+    const stamp = Date.now()
     const outBuf = await fs.readFile(outPath)
-    const blob = await put(`renders/${Date.now()}.mp4`, outBuf, {
+    const blob = await put(`renders/${stamp}.mp4`, outBuf, {
       access: 'public',
       contentType: 'video/mp4',
     })
 
-    return Response.json({ url: blob.url })
+    let posterUrl = null
+    try {
+      const posterPath = path.join(workDir, 'poster.jpg')
+      const posterAt = Math.min(1, (Number(totalDuration) || 4) * 0.2)
+      await run(FFMPEG, ['-y', '-ss', String(posterAt), '-i', outPath, '-frames:v', '1', '-q:v', '4', posterPath])
+      const posterBuf = await fs.readFile(posterPath)
+      const pblob = await put(`renders/${stamp}.jpg`, posterBuf, { access: 'public', contentType: 'image/jpeg' })
+      posterUrl = pblob.url
+    } catch { /* 포스터 실패해도 렌더는 성공 */ }
+
+    return Response.json({ url: blob.url, posterUrl })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
   } finally {
