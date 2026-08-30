@@ -29,6 +29,64 @@ const BGM_LABELS = {
   'trust-corporate': '차분하고 신뢰감 있는 톤 (Trusted Coverage · JoyInSound)',
 }
 
+// 편집 계획 상세 — 제작 전 검토 화면과 완성 후 결과 화면에서 공용으로 쓴다.
+function PlanDetails({ plan, bgm }) {
+  const anns = Array.isArray(plan.annotations) ? plan.annotations : []
+  return (
+    <>
+      <div className="dir-section" style={{ marginTop: 16 }}>
+        <div className="dir-sec-label">
+          샷 구성 ({plan.shots.length}컷 · 총 {Number(plan.totalDuration || 0).toFixed(1)}초)
+        </div>
+        <div className="dir-steps">
+          {plan.shots.map((s, i) => (
+            <div className="dir-step" key={i}>
+              <div className="dir-step-no">{i + 1}</div>
+              <div className="dir-step-text">
+                {s.duration.toFixed(1)}초 · {EFFECT_LABELS[s.effect] || s.effect}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="dir-section">
+        <div className="dir-sec-label">자막 ({plan.captions.length})</div>
+        {plan.captions.map((c, i) => (
+          <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+              {c.start.toFixed(1)}s ~ {c.end.toFixed(1)}s
+            </div>
+            <div className="caption-line">&quot;{c.text}&quot;</div>
+          </div>
+        ))}
+      </div>
+      {anns.length > 0 && (
+        <div className="dir-section">
+          <div className="dir-sec-label">손글씨 주석 ({anns.length}개)</div>
+          {anns.map((a, i) => (
+            <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                {a.start.toFixed(1)}s ~ {a.end.toFixed(1)}s · {ANN_POS_LABELS[a.position] || a.position} · {ANN_BUBBLE_LABELS[a.bubble] || a.bubble}
+                {a.arrow ? ' · 화살표' : ''}
+              </div>
+              <div className="caption-line">✍ &quot;{a.text}&quot;</div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="dir-section">
+        <div className="dir-sec-label">BGM</div>
+        <div className="dir-step">
+          <div className="dir-step-no">♪</div>
+          <div className="dir-step-text">
+            {bgm?.url ? `직접 업로드한 파일: ${bgm.file.name}` : (BGM_LABELS[plan.bgmKey] || '없음 (원본 소리만)')}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function StepDot({ n, current }) {
   const done = n < current
   const active = n === current
@@ -78,7 +136,7 @@ export default function Page() {
   // 업로드된 소스 클립: { id, file, label, isImage, duration, url, status }
   // 스톡 검색으로 추가된 클립은 file 없이 { id, label, isImage, duration, url,
   // status:'done', source:'stock', photographer }로 같은 배열에 들어간다 —
-  // runAutoEdit()은 소스 구분 없이 clips 배열을 그대로 사용하므로 별도 처리 불필요.
+  // generatePlan()은 소스 구분 없이 clips 배열을 그대로 사용하므로 별도 처리 불필요.
   const [clips, setClips] = useState([])
   const [bgm, setBgm] = useState(null) // { file, url, status }
 
@@ -93,6 +151,11 @@ export default function Page() {
 
   const [loadingDirective, setLoadingDirective] = useState(false)
   const [directive, setDirective] = useState(null)
+  // 제작 전 검토 게이트: /api/edit-plan 결과를 plan에 담아 사용자에게 보여주고,
+  // "이대로 제작"을 눌러야 /api/render로 넘어간다. plan._clips는 그 계획을 만들 때
+  // 쓴 업로드 클립 스냅샷(렌더가 같은 url을 참조하도록).
+  const [plan, setPlan] = useState(null)
+  const [planLoading, setPlanLoading] = useState(false)
   const [renderResult, setRenderResult] = useState(null)
   const [renderStage, setRenderStage] = useState('')
   const [rendering, setRendering] = useState(false)
@@ -240,7 +303,8 @@ export default function Page() {
     }
   }
 
-  async function runAutoEdit() {
+  // 1단계: AI 편집 계획만 생성 → plan에 담아 검토 화면을 띄운다. (아직 렌더 안 함)
+  async function generatePlan() {
     if (selectedIndex === null) return
     const proposal = proposals[selectedIndex]
     const readyClips = clips.filter((c) => c.status === 'done' && c.url)
@@ -250,10 +314,10 @@ export default function Page() {
     }
     setError('')
     setStep(3)
-    setRendering(true)
     setRenderResult(null)
+    setPlan(null)
+    setPlanLoading(true)
     try {
-      setRenderStage('편집 계획 짜는 중...')
       const planRes = await fetch('/api/edit-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -264,9 +328,24 @@ export default function Page() {
           clips: readyClips.map((c) => ({ label: c.label, duration: c.duration })),
         }),
       })
-      const plan = await planRes.json()
-      if (!planRes.ok) throw new Error(plan.error || '편집 계획 생성 실패')
+      const data = await planRes.json()
+      if (!planRes.ok) throw new Error(data.error || '편집 계획 생성 실패')
+      setPlan({ ...data, _clips: readyClips })
+    } catch (e) {
+      setError(`편집 계획 생성 실패: ${e.message}`)
+    } finally {
+      setPlanLoading(false)
+    }
+  }
 
+  // 2단계: 검토한 plan을 그대로 렌더로 넘긴다. ("이대로 제작" 클릭 시)
+  async function runRender() {
+    if (!plan) return
+    const readyClips = plan._clips || clips.filter((c) => c.status === 'done' && c.url)
+    setError('')
+    setRendering(true)
+    setRenderResult(null)
+    try {
       setRenderStage('영상 합성 중... (최대 1~2분 걸려요)')
       const renderShots = plan.shots.map((s) => ({
         url: readyClips[s.clipIndex].url,
@@ -292,7 +371,7 @@ export default function Page() {
 
       setRenderResult({ url: rendered.url, plan })
     } catch (e) {
-      setError(`자동 편집 실패: ${e.message}`)
+      setError(`영상 합성 실패: ${e.message}`)
     } finally {
       setRendering(false)
       setRenderStage('')
@@ -330,6 +409,8 @@ export default function Page() {
     setProposals([])
     setSelectedIndex(null)
     setDirective(null)
+    setPlan(null)
+    setPlanLoading(false)
     setRenderResult(null)
     setError('')
   }
@@ -575,8 +656,8 @@ export default function Page() {
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {hasClips ? (
                 <>
-                  <button className="btn-primary" onClick={runAutoEdit} disabled={selectedIndex === null}>
-                    🎬 자동 편집 실행 →
+                  <button className="btn-primary" onClick={generatePlan} disabled={selectedIndex === null}>
+                    🎬 편집 계획 만들기 →
                   </button>
                   <button className="btn-secondary" onClick={generateDirective} disabled={selectedIndex === null}>
                     편집 지시서만 보기
@@ -598,19 +679,52 @@ export default function Page() {
           <div>
             <div className="section">
               <div className="sec-eyebrow">Step 3</div>
-              <div className="sec-title">{renderResult ? '완성됐어요!' : rendering ? '자동 편집 중이에요' : '이렇게 편집하면 돼요'}</div>
+              <div className="sec-title">
+                {renderResult ? '완성됐어요!'
+                  : rendering ? '영상 만드는 중이에요'
+                  : planLoading ? '편집 계획 짜는 중이에요'
+                  : plan ? '이렇게 만들게요 — 확인해 주세요'
+                  : '이렇게 편집하면 돼요'}
+              </div>
               <div className="sec-desc">
-                {renderResult ? '아래 영상을 확인하고 다운로드하세요.' : rendering ? '' : '순서대로 따라하면 완성이에요.'}
+                {renderResult ? '아래 영상을 확인하고 다운로드하세요.'
+                  : rendering ? ''
+                  : planLoading ? ''
+                  : plan ? 'AI가 짠 계획이에요. 마음에 들면 "이대로 제작"을 눌러주세요.'
+                  : '순서대로 따라하면 완성이에요.'}
               </div>
             </div>
 
-            {(loadingDirective || rendering) && (
+            {(loadingDirective || rendering || planLoading) && (
               <div className="loading show">
                 <div className="loading-dots">
                   <div className="dot" /><div className="dot" /><div className="dot" />
                 </div>
-                <div className="loading-text">{rendering ? renderStage : '편집 지시서 작성 중...'}</div>
+                <div className="loading-text">
+                  {rendering ? renderStage : planLoading ? '편집 계획 짜는 중...' : '편집 지시서 작성 중...'}
+                </div>
               </div>
+            )}
+
+            {plan && !renderResult && !rendering && !planLoading && (
+              <>
+                <div className="directive show">
+                  <div className="directive-body">
+                    <PlanDetails plan={plan} bgm={bgm} />
+                  </div>
+                </div>
+                <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button className="btn-primary" onClick={runRender}>
+                    ✅ 이대로 제작 →
+                  </button>
+                  <button className="btn-secondary" onClick={generatePlan}>
+                    🔄 계획 다시 짜기
+                  </button>
+                </div>
+                <div className="restart-row">
+                  <button className="btn-restart" onClick={() => { setPlan(null); setStep(2) }}>← 연출 다시 고르기</button>
+                </div>
+              </>
             )}
 
             {error && <div className="error-box">{error}</div>}
@@ -624,53 +738,7 @@ export default function Page() {
                       controls
                       style={{ width: '100%', borderRadius: 10, background: '#000' }}
                     />
-                    <div className="dir-section" style={{ marginTop: 16 }}>
-                      <div className="dir-sec-label">샷 구성 ({renderResult.plan.shots.length}컷)</div>
-                      <div className="dir-steps">
-                        {renderResult.plan.shots.map((s, i) => (
-                          <div className="dir-step" key={i}>
-                            <div className="dir-step-no">{i + 1}</div>
-                            <div className="dir-step-text">
-                              {s.duration.toFixed(1)}초 · {EFFECT_LABELS[s.effect] || s.effect}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="dir-section">
-                      <div className="dir-sec-label">사용된 자막</div>
-                      {renderResult.plan.captions.map((c, i) => (
-                        <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                            {c.start.toFixed(1)}s ~ {c.end.toFixed(1)}s
-                          </div>
-                          <div className="caption-line">&quot;{c.text}&quot;</div>
-                        </div>
-                      ))}
-                    </div>
-                    {renderResult.plan.annotations && renderResult.plan.annotations.length > 0 && (
-                      <div className="dir-section">
-                        <div className="dir-sec-label">손글씨 주석 ({renderResult.plan.annotations.length}개)</div>
-                        {renderResult.plan.annotations.map((a, i) => (
-                          <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                              {a.start.toFixed(1)}s ~ {a.end.toFixed(1)}s · {ANN_POS_LABELS[a.position] || a.position} · {ANN_BUBBLE_LABELS[a.bubble] || a.bubble}
-                              {a.arrow ? ' · 화살표' : ''}
-                            </div>
-                            <div className="caption-line">✍ &quot;{a.text}&quot;</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="dir-section">
-                      <div className="dir-sec-label">사용된 BGM</div>
-                      <div className="dir-step">
-                        <div className="dir-step-no">♪</div>
-                        <div className="dir-step-text">
-                          {bgm?.url ? `직접 업로드한 파일: ${bgm.file.name}` : (BGM_LABELS[renderResult.plan.bgmKey] || '없음 (원본 소리만)')}
-                        </div>
-                      </div>
-                    </div>
+                    <PlanDetails plan={renderResult.plan} bgm={bgm} />
                   </div>
                 </div>
                 <div className="action-row">
