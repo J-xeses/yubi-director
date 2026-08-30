@@ -27,14 +27,195 @@ const ANN_POS_LABELS = {
 const ANN_BUBBLE_LABELS = {
   none: '말풍선 없음', cloud: '구름 말풍선', oval: '동그란 말풍선', arrow_box: '각진 말풍선',
 }
+const ANN_COLOR_LABELS = { white: '흰색', pink: '핑크', lavender: '라벤더' }
+const ANN_ARROW_DIR_LABELS = { up: '위', down: '아래', left: '왼쪽', right: '오른쪽' }
+
+// 표현 유형 프리셋 — 하나 고르면 말풍선/색/장식/화살표가 한 번에 세팅되고,
+// 이후 각 항목을 사람이 미세 조정할 수 있다. (text/시간/위치는 유지)
+const ANNOTATION_PRESETS = [
+  { key: 'custom', label: '직접 설정', hint: '아래 항목을 자유롭게', config: null },
+  { key: 'question', label: '질문 던지기', hint: '구름 말풍선 · 흰색 · ✦', config: { bubble: 'cloud', color: 'white', deco: ['✦'], arrow: false } },
+  { key: 'highlight', label: '핵심 강조', hint: '동그라미 · 핑크 · 아래 화살표', config: { bubble: 'oval', color: 'pink', deco: [], arrow: true, arrowDir: 'down' } },
+  { key: 'point', label: '콕 집어 지목', hint: '각진 말풍선 · 라벤더 · 옆 화살표', config: { bubble: 'arrow_box', color: 'lavender', deco: [], arrow: true, arrowDir: 'left' } },
+  { key: 'emotion', label: '감성 한마디', hint: '구름 말풍선 · 라벤더 · ♡', config: { bubble: 'cloud', color: 'lavender', deco: ['♡'], arrow: false } },
+  { key: 'cta', label: '마무리 CTA', hint: '각진 말풍선 · 핑크 · 위 화살표', config: { bubble: 'arrow_box', color: 'pink', deco: ['✦'], arrow: true, arrowDir: 'up' } },
+  { key: 'minimal', label: '미니멀', hint: '말풍선 없이 글씨만', config: { bubble: 'none', color: 'white', deco: [] } },
+]
+const PRESET_BY_KEY = Object.fromEntries(ANNOTATION_PRESETS.map((p) => [p.key, p]))
+
+// AI가 준 주석이 어떤 표현 유형과 일치하는지 추정 (편집기 드롭다운 초기값용)
+function inferPreset(a) {
+  for (const p of ANNOTATION_PRESETS) {
+    if (!p.config) continue
+    const c = p.config
+    const decoEq = (c.deco || []).join(',') === (a.deco || []).join(',')
+    if (c.bubble === a.bubble && c.color === a.color && decoEq
+      && !!c.arrow === !!a.arrow
+      && (!c.arrow || c.arrowDir === a.arrowDir)) return p.key
+  }
+  return 'custom'
+}
+
+function blankAnnotation(totalDuration) {
+  const mid = Math.max(1, Math.round((Number(totalDuration) || 12) / 2))
+  return {
+    text: '', start: Math.max(0, mid - 1), end: mid + 2,
+    position: 'top_center', bubble: 'cloud', color: 'white',
+    deco: [], arrow: false, arrowDir: 'down', _preset: 'custom',
+  }
+}
 const BGM_LABELS = {
   'calm-piano': '잔잔한 피아노 (Emotional Piano · MondaMusic)',
   'upbeat-reel': '밝고 경쾌한 릴스 비트 (Instagram Reel · SoundSurfer)',
   'trust-corporate': '차분하고 신뢰감 있는 톤 (Trusted Coverage · JoyInSound)',
 }
 
+const annFieldStyle = {
+  background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)',
+  borderRadius: 8, fontSize: 12, padding: '5px 8px',
+}
+const annLabelStyle = { fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }
+
+// 손글씨 주석 편집기 — 표현 유형(프리셋)으로 1차 선택 후 각 항목을 미세 조정.
+function AnnotationEditor({ annotations, totalDuration, onChange }) {
+  const list = Array.isArray(annotations) ? annotations : []
+
+  const update = (i, patch) =>
+    onChange(list.map((a, idx) => (idx === i ? { ...a, ...patch } : a)))
+
+  const applyPreset = (i, key) => {
+    const preset = PRESET_BY_KEY[key]
+    if (!preset || !preset.config) return update(i, { _preset: key })
+    update(i, { ...preset.config, _preset: key })
+  }
+
+  const add = () => onChange([...list, blankAnnotation(totalDuration)].slice(0, 8))
+  const remove = (i) => onChange(list.filter((_, idx) => idx !== i))
+
+  return (
+    <div className="dir-section">
+      <div className="dir-sec-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>손글씨 주석 ({list.length}개)</span>
+        {list.length < 8 && (
+          <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={add}>+ 추가</button>
+        )}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+        표현 유형을 고른 뒤, 필요하면 아래 항목을 직접 조정하세요. 문구를 비우면 제작 시 제외됩니다.
+      </div>
+
+      {list.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+          손글씨 주석이 없어요. &quot;+ 추가&quot;로 넣을 수 있어요.
+        </div>
+      )}
+
+      {list.map((a, i) => (
+        <div key={i} className="caption-box" style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <input
+              type="text"
+              value={a.text || ''}
+              placeholder="손글씨 문구 (짧고 강하게, 최대 12자 권장)"
+              onChange={(e) => update(i, { text: e.target.value })}
+              style={{ ...annFieldStyle, flex: 1, fontSize: 13 }}
+            />
+            <button className="btn-reset" style={{ padding: '5px 10px' }} onClick={() => remove(i)}>✕</button>
+          </div>
+
+          <div>
+            <label style={annLabelStyle}>표현 유형</label>
+            <select
+              value={a._preset || 'custom'}
+              onChange={(e) => applyPreset(i, e.target.value)}
+              style={{ ...annFieldStyle, width: '100%' }}
+            >
+              {ANNOTATION_PRESETS.map((p) => (
+                <option key={p.key} value={p.key}>{p.label} — {p.hint}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <div>
+              <label style={annLabelStyle}>시작(초)</label>
+              <input type="number" step="0.5" min="0" max={totalDuration || undefined}
+                value={a.start ?? 0}
+                onChange={(e) => update(i, { start: Math.max(0, Number(e.target.value) || 0) })}
+                style={{ ...annFieldStyle, width: '100%' }} />
+            </div>
+            <div>
+              <label style={annLabelStyle}>끝(초)</label>
+              <input type="number" step="0.5" min="0" max={totalDuration || undefined}
+                value={a.end ?? 0}
+                onChange={(e) => update(i, { end: Math.max(0, Number(e.target.value) || 0) })}
+                style={{ ...annFieldStyle, width: '100%' }} />
+            </div>
+            <div>
+              <label style={annLabelStyle}>위치</label>
+              <select value={a.position || 'top_center'}
+                onChange={(e) => update(i, { position: e.target.value })}
+                style={{ ...annFieldStyle, width: '100%' }}>
+                {Object.entries(ANN_POS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <label style={annLabelStyle}>말풍선</label>
+              <select value={a.bubble || 'cloud'}
+                onChange={(e) => update(i, { bubble: e.target.value, _preset: 'custom' })}
+                style={{ ...annFieldStyle, width: '100%' }}>
+                {Object.entries(ANN_BUBBLE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={annLabelStyle}>색</label>
+              <select value={a.color || 'white'}
+                onChange={(e) => update(i, { color: e.target.value, _preset: 'custom' })}
+                style={{ ...annFieldStyle, width: '100%' }}>
+                {Object.entries(ANN_COLOR_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'end' }}>
+            <div>
+              <label style={annLabelStyle}>장식 글자 (쉼표로 구분: ♡, ✦, !, ?)</label>
+              <input type="text"
+                value={(a.deco || []).join(', ')}
+                placeholder="예: ♡, ✦"
+                onChange={(e) => update(i, {
+                  deco: e.target.value.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 3),
+                  _preset: 'custom',
+                })}
+                style={{ ...annFieldStyle, width: '100%' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text)' }}>
+                <input type="checkbox" checked={!!a.arrow}
+                  onChange={(e) => update(i, { arrow: e.target.checked, _preset: 'custom' })} />
+                화살표
+              </label>
+              {a.arrow && (
+                <select value={a.arrowDir || 'down'}
+                  onChange={(e) => update(i, { arrowDir: e.target.value, _preset: 'custom' })}
+                  style={{ ...annFieldStyle, flex: 1 }}>
+                  {Object.entries(ANN_ARROW_DIR_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // 편집 계획 상세 — 제작 전 검토 화면과 완성 후 결과 화면에서 공용으로 쓴다.
-function PlanDetails({ plan, bgm }) {
+// onAnnotationsChange가 주어지면 손글씨 주석 부분이 편집 가능해진다(검토 화면).
+function PlanDetails({ plan, bgm, onAnnotationsChange }) {
   const anns = Array.isArray(plan.annotations) ? plan.annotations : []
   return (
     <>
@@ -64,14 +245,23 @@ function PlanDetails({ plan, bgm }) {
           </div>
         ))}
       </div>
-      {anns.length > 0 && (
+      {onAnnotationsChange ? (
+        <AnnotationEditor
+          annotations={anns}
+          totalDuration={plan.totalDuration}
+          onChange={onAnnotationsChange}
+        />
+      ) : anns.filter((a) => String(a.text || '').trim()).length > 0 && (
         <div className="dir-section">
-          <div className="dir-sec-label">손글씨 주석 ({anns.length}개)</div>
-          {anns.map((a, i) => (
+          <div className="dir-sec-label">
+            손글씨 주석 ({anns.filter((a) => String(a.text || '').trim()).length}개)
+          </div>
+          {anns.filter((a) => String(a.text || '').trim()).map((a, i) => (
             <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                {a.start.toFixed(1)}s ~ {a.end.toFixed(1)}s · {ANN_POS_LABELS[a.position] || a.position} · {ANN_BUBBLE_LABELS[a.bubble] || a.bubble}
-                {a.arrow ? ' · 화살표' : ''}
+                {Number(a.start).toFixed(1)}s ~ {Number(a.end).toFixed(1)}s · {ANN_POS_LABELS[a.position] || a.position} · {ANN_BUBBLE_LABELS[a.bubble] || a.bubble}
+                {a.arrow ? ` · 화살표(${ANN_ARROW_DIR_LABELS[a.arrowDir] || a.arrowDir})` : ''}
+                {a.deco && a.deco.length ? ` · ${a.deco.join(' ')}` : ''}
               </div>
               <div className="caption-line">✍ &quot;{a.text}&quot;</div>
             </div>
@@ -337,7 +527,9 @@ export default function Page() {
       })
       const data = await planRes.json()
       if (!planRes.ok) throw new Error(data.error || '편집 계획 생성 실패')
-      setPlan({ ...data, _clips: readyClips })
+      const annotations = (Array.isArray(data.annotations) ? data.annotations : [])
+        .map((a) => ({ ...a, _preset: inferPreset(a) }))
+      setPlan({ ...data, annotations, _clips: readyClips })
     } catch (e) {
       setError(`편집 계획 생성 실패: ${e.message}`)
     } finally {
@@ -346,6 +538,11 @@ export default function Page() {
   }
 
   // 2단계: 검토한 plan을 그대로 렌더로 넘긴다. ("이대로 제작" 클릭 시)
+  // 검토 화면에서 사용자가 손글씨 주석을 편집하면 plan을 갱신한다.
+  function setAnnotations(next) {
+    setPlan((p) => (p ? { ...p, annotations: next } : p))
+  }
+
   async function runRender() {
     if (!plan) return
     const readyClips = plan._clips || clips.filter((c) => c.status === 'done' && c.url)
@@ -360,13 +557,17 @@ export default function Page() {
         duration: s.duration,
         effect: s.effect,
       }))
+      // 편집기 내부용 _preset 키는 제거하고 문구 있는 것만 전송
+      const cleanAnns = (plan.annotations || [])
+        .filter((a) => String(a.text || '').trim())
+        .map(({ _preset, ...a }) => a)
       const renderRes = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           shots: renderShots,
           captions: plan.captions,
-          annotations: plan.annotations || [],
+          annotations: cleanAnns,
           bgmUrl: bgm?.url || null,
           bgmKey: bgm?.url ? null : plan.bgmKey,
           totalDuration: plan.totalDuration,
@@ -733,7 +934,7 @@ export default function Page() {
               <>
                 <div className="directive show">
                   <div className="directive-body">
-                    <PlanDetails plan={plan} bgm={bgm} />
+                    <PlanDetails plan={plan} bgm={bgm} onAnnotationsChange={setAnnotations} />
                   </div>
                 </div>
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
