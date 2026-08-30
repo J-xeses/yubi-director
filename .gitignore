@@ -6,3 +6,8 @@ dev.log
 
 .vercel
 .env*
+
+# 렌더 결과 로컬 사본 (renders/README.md, .gitkeep 만 추적)
+renders/*
+!renders/.gitkeep
+!renders/README.md
