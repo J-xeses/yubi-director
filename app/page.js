@@ -87,7 +87,7 @@ function useVideoFrame(url, time, w = 132, h = 234) {
     const v = document.createElement('video')
     v.crossOrigin = 'anonymous'
     v.muted = true
-    v.preload = 'auto'
+    v.preload = 'metadata'
     v.playsInline = true
     const cleanup = () => { v.removeAttribute('src'); v.load() }
     const capture = () => {
@@ -116,6 +116,21 @@ function useVideoFrame(url, time, w = 132, h = 234) {
   return dataUrl
 }
 
+// 영상 URL을 정지 프레임(포스터)으로 보여준다 — <video>는 브라우저마다 첫 프레임을
+// 안 그리는 경우가 있어 canvas 캡처를 쓴다.
+function VideoPoster({ url, time = 1, style, className, onClick }) {
+  const frame = useVideoFrame(url, time, 180, 320)
+  if (frame) {
+    return <img src={frame} alt="" className={className} style={style} onClick={onClick} />
+  }
+  return (
+    <div className={className} onClick={onClick}
+      style={{ ...style, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', color: '#fff' }}>
+      ▶
+    </div>
+  )
+}
+
 // 검토 화면 — 각 컷의 대표 프레임 썸네일
 function ShotThumb({ clip, trimStart }) {
   const isImg = !!clip?.isImage
@@ -142,7 +157,7 @@ function ClipThumb({ clip }) {
   if (clip.isImage) {
     return <img src={clip.previewUrl} alt="" style={box} />
   }
-  return <video src={clip.previewUrl} muted playsInline preload="metadata" style={box} />
+  return <VideoPoster url={clip.previewUrl} time={0.2} style={box} />
 }
 
 // 손글씨 주석 실시간 미리보기 — lib/handwriting-preview.js(브라우저 canvas)로 그린다.
@@ -1017,10 +1032,10 @@ export default function Page() {
                       {pastRenders.map((r) => (
                         <a key={r.url} href={r.url} target="_blank" rel="noreferrer"
                           style={{ textDecoration: 'none' }}>
-                          <video
-                            src={r.url + '#t=1'}
-                            muted playsInline preload="metadata"
-                            style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8, background: '#000', border: '1px solid var(--border)' }}
+                          <VideoPoster
+                            url={r.url}
+                            time={1}
+                            style={{ width: '100%', aspectRatio: '9/16', objectFit: 'cover', borderRadius: 8, background: '#000', border: '1px solid var(--border)', cursor: 'pointer' }}
                           />
                           <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 2, textAlign: 'center' }}>
                             {new Date(r.uploadedAt).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
