@@ -100,8 +100,15 @@ function sanitizeShots(shots, clips) {
     .filter(Boolean)
 }
 
+// 목표 길이 프리셋 — 'short'는 간결·임팩트, 'standard'는 기존 동작.
+const LENGTH_PRESETS = {
+  short: { lo: 15, hi: 20, cap: 21, shotLen: '2~3.5초', shotCount: '5~8개', captionCount: '4~6개', extra: '군더더기 없이 가장 강한 장면만 남기세요. 도입 훅 → 핵심 1~2개 → 마지막 한 방, 이 구조로 압축하세요.' },
+  standard: { lo: 20, hi: 30, cap: 32, shotLen: '1.5~4초', shotCount: '8~12개', captionCount: '5~8개', extra: '' },
+}
+
 export async function POST(request) {
-  const { proposal, sourceText, treatment, clips } = await request.json()
+  const { proposal, sourceText, treatment, clips, targetLength } = await request.json()
+  const LEN = LENGTH_PRESETS[targetLength] || LENGTH_PRESETS.standard
 
   const clipList = clips
     .map((c, i) => `${i}: ${c.label || '(라벨 없음)'} (원본 길이 ${c.duration ? c.duration.toFixed(1) + '초' : '알 수 없음'})`)
@@ -127,13 +134,13 @@ ${clipList}
   - "zoom-in": 서서히 확대 (강조하고 싶은 표정/디테일에 사용)
   - "zoom-out": 서서히 축소
   - "slow-mo": 절반 속도 슬로우모션 (감성적인 순간에 사용)
-- 샷 길이는 1.5~4초 사이로, 너무 길게 한 샷을 끌지 마세요 — 리듬감 있게 여러 샷으로 쪼개세요.
-- 전체 영상 길이는 20~30초 사이로 구성하세요.
+- 샷 길이는 ${LEN.shotLen} 사이로, 너무 길게 한 샷을 끌지 마세요 — 리듬감 있게 여러 샷으로 쪼개세요.
+- 전체 영상 길이는 ${LEN.lo}~${LEN.hi}초로 구성하세요. 샷은 총 ${LEN.shotCount} 내외.${LEN.extra ? ' ' + LEN.extra : ''}
 - 클립 라벨이 "스톡 B-roll(검색)"인 것은 직접 촬영한 게 아니라 보충용으로 검색해 넣은
   자료입니다. 핵심 서사(시술 과정, 고객 반응 등)는 본인 촬영 클립으로 채우고, 스톡
-  클립은 도입부/전환/분위기 보강용으로 활용해 20~30초를 자연스럽게 채우세요.
+  클립은 도입부/전환/분위기 보강용으로 활용해 ${LEN.lo}~${LEN.hi}초를 자연스럽게 채우세요.
 - 자막은 전체 타임라인 기준(초 단위)으로 시작/끝 시각을 지정하세요. 자막끼리 겹치지 않게 하세요.
-- 자막 문구는 짧고 임팩트 있게, 실제 릴스에 쓸 수준으로 작성하세요.
+- 자막은 ${LEN.captionCount} 정도로, 짧고 임팩트 있게, 실제 릴스에 쓸 수준으로 작성하세요.
 - bgmKey는 이 영상 분위기에 가장 잘 맞는 것 하나를 아래 중에서 고르세요:
   - "calm-piano": 잔잔한 피아노, 감동적/진솔한 톤
   - "upbeat-reel": 밝고 경쾌한 릴스 비트, 활기찬 톤
@@ -167,6 +174,22 @@ ${clipList}
       return Response.json({ error: 'AI가 유효한 편집 계획을 만들지 못했습니다. 다시 시도해주세요.' }, { status: 500 })
     }
     parsed.totalDuration = Number(parsed.shots.reduce((sum, s) => sum + s.duration, 0).toFixed(2))
+
+    // AI가 목표 길이를 넘겨도 사용자가 고른 길이를 지키도록 서버에서 전체를 균등
+    // 축소한다(샷·자막·주석 타임코드 동일 비율). 그래야 "짧게(15~20초)"가 실제로 지켜짐.
+    if (parsed.totalDuration > LEN.cap) {
+      const f = LEN.cap / parsed.totalDuration
+      const sc = (t) => Number((Number(t) * f).toFixed(2))
+      parsed.shots = parsed.shots.map((s) => ({ ...s, duration: Math.max(0.5, sc(s.duration)) }))
+      parsed.totalDuration = Number(parsed.shots.reduce((sum, s) => sum + s.duration, 0).toFixed(2))
+      if (Array.isArray(parsed.captions)) {
+        parsed.captions = parsed.captions.map((c) => ({ ...c, start: sc(c.start), end: sc(c.end) }))
+      }
+      if (Array.isArray(parsed.annotations)) {
+        parsed.annotations = parsed.annotations.map((a) => ({ ...a, start: sc(a.start), end: sc(a.end) }))
+      }
+    }
+
     parsed.captions = sanitizeCaptions(parsed.captions, parsed.totalDuration)
     parsed.annotations = sanitizeAnnotations(parsed.annotations, parsed.totalDuration)
     if (!VALID_GRADES.has(parsed.colorGrade)) parsed.colorGrade = 'neutral'

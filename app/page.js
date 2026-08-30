@@ -10,6 +10,10 @@ const SOURCE_TAGS = [
 ]
 const TREATMENT_TAGS = ['이마라인 교정', '눈썹 반영구', '복합 시술', '상담/설명', '기타']
 const MOOD_TAGS = ['감동적/진솔한', '전문적/신뢰감', '밝고 활기찬', '교육적/정보형', '친근한/일상적']
+const LENGTH_TAGS = [
+  { key: 'short', label: '짧게 · 임팩트 (15~20초)' },
+  { key: 'standard', label: '표준 (20~30초)' },
+]
 const EFFECT_LABELS = {
   'static': '고정',
   'zoom-in': '줌인',
@@ -132,6 +136,7 @@ export default function Page() {
   const [sourceTags, setSourceTags] = useState([])
   const [treatment, setTreatment] = useState('')
   const [mood, setMood] = useState('')
+  const [targetLength, setTargetLength] = useState('standard')
 
   // 업로드된 소스 클립: { id, file, label, isImage, duration, url, status }
   // 스톡 검색으로 추가된 클립은 file 없이 { id, label, isImage, duration, url,
@@ -263,6 +268,7 @@ export default function Page() {
           sourceTags: sourceTags.join(', '),
           treatment,
           mood,
+          targetLength,
         }),
       })
       const data = await res.json()
@@ -325,6 +331,7 @@ export default function Page() {
           proposal,
           sourceText: sourceText.trim(),
           treatment,
+          targetLength,
           clips: readyClips.map((c) => ({ label: c.label, duration: c.duration })),
         }),
       })
@@ -404,6 +411,7 @@ export default function Page() {
     setSourceTags([])
     setTreatment('')
     setMood('')
+    setTargetLength('standard')
     setClips([])
     setBgm(null)
     setProposals([])
@@ -585,7 +593,7 @@ export default function Page() {
               </div>
             </div>
 
-            <div className="tag-group" style={{ marginBottom: 24 }}>
+            <div className="tag-group">
               <div className="tag-label">이번 릴스 분위기는?</div>
               <div className="tags">
                 {MOOD_TAGS.map((tag) => (
@@ -595,6 +603,21 @@ export default function Page() {
                     onClick={() => setMood(tag)}
                   >
                     {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="tag-group" style={{ marginBottom: 24 }}>
+              <div className="tag-label">영상 길이</div>
+              <div className="tags">
+                {LENGTH_TAGS.map((opt) => (
+                  <button
+                    key={opt.key}
+                    className={`tag${targetLength === opt.key ? ' on' : ''}`}
+                    onClick={() => setTargetLength(opt.key)}
+                  >
+                    {opt.label}
                   </button>
                 ))}
               </div>
