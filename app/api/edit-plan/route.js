@@ -67,6 +67,7 @@ function sanitizeAnnotations(annotations, totalDuration) {
           ? (a.arrowDir || a.arrow_direction)
           : 'down',
         backing: a.backing !== false,
+        underline: !!a.underline,
       }
       if (a.x != null && isFinite(Number(a.x))) out.x = Number(clamp01(a.x).toFixed(3))
       if (a.y != null && isFinite(Number(a.y))) out.y = Number(clamp01(a.y).toFixed(3))
@@ -166,8 +167,8 @@ ${clipList}
   - color: "white" | "pink" | "lavender"
   - deco: 장식 글자 배열, 예 ["♡","✦"] (없으면 [])
   - arrow: true면 화살표 표시, arrowDir: "up" | "down" | "left" | "right"
-  - backing: 기본 true(글자 뒤 반투명 판). 배경이 어둡거나 인스타 스토리처럼 사진 위에
-    바로 얹고 싶으면 false (글자 외곽선만)
+  - backing: 기본 true(밝은 배경에서도 잘 보이게 그림자를 진하게). 어두운 장면이면 false
+  - underline: true면 손그림 점선 밑줄. 영상 도입 타이틀 문구에 어울림 (bubble "none"일 때만)
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {

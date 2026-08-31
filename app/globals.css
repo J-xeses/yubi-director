@@ -39,7 +39,9 @@ body{
 .header-title{font-size:18px;font-weight:900;letter-spacing:-.4px;}
 .header-sub{font-size:12px;color:var(--text-sub);margin-top:2px;font-weight:300;}
 
-.main{max-width:680px;margin:0 auto;padding:28px 20px 80px;}
+.main{max-width:820px;margin:0 auto;padding:28px 24px 80px;}
+/* 제작 전 검토 화면은 미리보기+편집기가 나란히 놓여 더 넓은 게 유리 */
+.main:has(.directive-body){max-width:960px;}
 
 .steps{
   display:flex;align-items:center;gap:0;

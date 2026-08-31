@@ -135,7 +135,8 @@ try {
       await fs.writeFile(png, renderAnnotationPNG({
         text: a.text, position: a.position, bubble: a.bubble, color: a.color,
         deco: Array.isArray(a.deco) ? a.deco : String(a.deco || '').split(',').map((s) => s.trim()).filter(Boolean),
-        arrow: !!a.arrow, arrowDir: a.arrowDir, backing: a.backing !== false,
+        arrow: !!a.arrow, arrowDir: a.arrowDir, arrowTarget: a.arrowTarget,
+        backing: a.backing !== false, underline: !!a.underline,
         x: a.x, y: a.y, fontSize: a.fontSize,
       }))
       inputArgs.push('-loop', '1', '-t', String(Math.max(1, Number(totalDuration) || 30)), '-i', png)

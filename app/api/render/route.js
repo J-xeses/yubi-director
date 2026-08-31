@@ -258,7 +258,7 @@ export async function POST(request) {
           text: a.text, position: a.position, bubble: a.bubble, color: a.color,
           deco: Array.isArray(a.deco) ? a.deco : String(a.deco || '').split(',').map((s) => s.trim()).filter(Boolean),
           arrow: !!a.arrow, arrowDir: a.arrowDir || a.arrow_direction,
-          backing: a.backing !== false,
+          backing: a.backing !== false, underline: !!a.underline,
           x: a.x, y: a.y, fontSize: a.fontSize,
           arrowTarget: Array.isArray(a.arrowTarget) ? a.arrowTarget : undefined,
         }))

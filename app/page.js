@@ -63,7 +63,7 @@ function blankAnnotation(totalDuration) {
   return {
     text: '', start: Math.max(0, mid - 1), end: mid + 2,
     position: 'top_center', bubble: 'cloud', color: 'white',
-    deco: [], arrow: false, arrowDir: 'down', backing: true, _preset: 'custom',
+    deco: [], arrow: false, arrowDir: 'down', backing: true, underline: false, _preset: 'custom',
   }
 }
 const BGM_LABELS = {
@@ -328,12 +328,19 @@ function AnnotationEditor({ annotations, totalDuration, onChange }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: 8, alignItems: 'end' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text)', paddingBottom: 5 }}>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 2 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text)' }}>
               <input type="checkbox" checked={a.backing !== false}
                 onChange={(e) => update(i, { backing: e.target.checked })} />
-              배경 판
+              진한 그림자
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text)' }}>
+              <input type="checkbox" checked={!!a.underline}
+                onChange={(e) => update(i, { underline: e.target.checked })} />
+              밑줄
+            </label>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'end' }}>
             <div>
               <label style={annLabelStyle}>가로 % (선택 · 비우면 위치 자동)</label>
               <input type="number" min="0" max="100" placeholder="—"
