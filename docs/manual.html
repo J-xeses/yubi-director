@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>유비 디렉터 매뉴얼</title>
+<meta name="description" content="반영구 시술 릴스를 유비가 직접, 또는 바쁠 때 성준이 틀을 잡아 만드는 전체 사용 절차." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@400;500;600;700;800&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Nanum+Pen+Script&display=swap" />
+
+<style>
+  /* ============ 토큰 : 라이트(기본) ============ */
+  :root{
+    color-scheme:light dark;
+    --ground:#faf6f3;
+    --surface:#ffffff;
+    --surface-2:#f2eae5;
+    --border:#e8ddd5;
+    --border-strong:#dccabf;
+    --ink:#2b2320;
+    --ink-sub:#6b5d55;
+    --ink-mute:#a08f85;
+    --rose:#b1584a;
+    --rose-soft:rgba(177,88,74,.10);
+    --gold:#93712f;
+    --gold-soft:rgba(147,113,47,.12);
+    --peri:#586a99;
+    --peri-soft:rgba(88,106,153,.12);
+    --shadow:0 1px 2px rgba(60,40,30,.05), 0 14px 34px -18px rgba(60,40,30,.16);
+    --grad:linear-gradient(135deg,#b1584a,#93712f);
+  }
+  /* ============ 토큰 : 다크 (유비 디렉터 앱과 동일 계열) ============ */
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0f0e0e;
+      --surface:#181616;
+      --surface-2:#211e1e;
+      --border:#2c2828;
+      --border-strong:#3d3736;
+      --ink:#f0ebe8;
+      --ink-sub:#9a8f8a;
+      --ink-mute:#5f5651;
+      --rose:#d4857a;
+      --rose-soft:rgba(212,133,122,.12);
+      --gold:#c9a96e;
+      --gold-soft:rgba(201,169,110,.13);
+      --peri:#9b9dc9;
+      --peri-soft:rgba(155,157,201,.15);
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -20px rgba(0,0,0,.7);
+      --grad:linear-gradient(135deg,#d4857a,#c9a96e);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0f0e0e;
+    --surface:#181616;
+    --surface-2:#211e1e;
+    --border:#2c2828;
+    --border-strong:#3d3736;
+    --ink:#f0ebe8;
+    --ink-sub:#9a8f8a;
+    --ink-mute:#5f5651;
+    --rose:#d4857a;
+    --rose-soft:rgba(212,133,122,.12);
+    --gold:#c9a96e;
+    --gold-soft:rgba(201,169,110,.13);
+    --peri:#9b9dc9;
+    --peri-soft:rgba(155,157,201,.15);
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -20px rgba(0,0,0,.7);
+    --grad:linear-gradient(135deg,#d4857a,#c9a96e);
+  }
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;scroll-padding-top:76px;}
+  @media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto;} *{animation:none!important;transition:none!important;} }
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:'IBM Plex Sans KR','Apple SD Gothic Neo',system-ui,sans-serif;
+    font-weight:400;
+    line-height:1.78;
+    -webkit-font-smoothing:antialiased;
+    letter-spacing:-.01em;
+  }
+
+  /* ---------- 상단 바 ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    background:var(--ground);
+    background:color-mix(in srgb, var(--ground) 90%, transparent);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar-inner{
+    max-width:940px;margin:0 auto;padding:11px 22px;
+    display:flex;align-items:center;gap:16px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;flex-shrink:0;letter-spacing:-.02em;}
+  .brand .mark{
+    width:26px;height:26px;border-radius:8px;flex-shrink:0;
+    background:var(--grad);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;
+  }
+  .topnav{display:flex;gap:3px;margin-left:auto;flex-wrap:wrap;}
+  .topnav a{
+    color:var(--ink-sub);text-decoration:none;font-size:12.5px;font-weight:500;
+    padding:5px 9px;border-radius:7px;white-space:nowrap;
+  }
+  .topnav a:hover{color:var(--ink);background:var(--surface-2);}
+  .theme-btn{
+    flex-shrink:0;width:30px;height:30px;border-radius:8px;
+    border:1px solid var(--border);background:var(--surface);color:var(--ink-sub);
+    cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;
+  }
+  .theme-btn:hover{color:var(--ink);border-color:var(--border-strong);}
+  @media (max-width:720px){ .topnav{display:none;} }
+
+  /* ---------- 레이아웃 ---------- */
+  main{max-width:940px;margin:0 auto;padding:0 22px 120px;}
+  .wrap{max-width:720px;}
+
+  .hero{padding:64px 0 34px;border-bottom:1px solid var(--border);margin-bottom:44px;}
+  .kicker{
+    font-size:11px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--rose);margin-bottom:18px;
+  }
+  h1{
+    font-family:'Hahmlet','IBM Plex Sans KR',serif;
+    font-weight:700;font-size:clamp(2.1rem,6vw,3.15rem);line-height:1.16;
+    letter-spacing:-.02em;text-wrap:balance;margin-bottom:20px;
+  }
+  h1 em{font-style:normal;color:var(--rose);}
+  .lede{font-size:16px;color:var(--ink-sub);line-height:1.85;max-width:44ch;}
+  .hero-link{
+    display:inline-flex;align-items:center;gap:8px;margin-top:24px;
+    font-size:13.5px;font-weight:600;color:var(--ink);text-decoration:none;
+    padding:9px 16px;border-radius:999px;border:1px solid var(--border-strong);
+    background:var(--surface);box-shadow:var(--shadow);
+  }
+  .hero-link:hover{border-color:var(--rose);color:var(--rose);}
+  .hero-link .u{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-sub);}
+
+  /* ---------- 섹션 공통 ---------- */
+  section{margin-bottom:60px;scroll-margin-top:76px;}
+  .part-head{display:flex;align-items:flex-start;gap:20px;margin-bottom:30px;}
+  .part-glyph{
+    font-family:'Hahmlet',serif;font-weight:800;font-size:44px;line-height:1;
+    width:64px;height:64px;border-radius:16px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--rose);background:var(--rose-soft);border:1px solid var(--border);
+  }
+  .part-b .part-glyph{color:var(--peri);background:var(--peri-soft);}
+  .part-head h2{
+    font-family:'Hahmlet','IBM Plex Sans KR',serif;
+    font-weight:700;font-size:clamp(1.5rem,3.6vw,2rem);line-height:1.25;
+    letter-spacing:-.02em;text-wrap:balance;
+  }
+  .part-head p{font-size:14px;color:var(--ink-sub);margin-top:8px;max-width:52ch;}
+
+  h3{
+    font-family:'IBM Plex Sans KR',sans-serif;
+    font-size:19px;font-weight:700;letter-spacing:-.02em;
+    margin:40px 0 6px;text-wrap:balance;
+  }
+  h3 .n{
+    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;
+    color:var(--rose);margin-right:10px;
+  }
+  .part-b h3 .n{color:var(--peri);}
+  h3 + .sub{font-size:13.5px;color:var(--ink-sub);margin-bottom:18px;}
+
+  h4{
+    font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-mute);margin:26px 0 12px;
+    display:flex;align-items:center;gap:10px;
+  }
+  h4::after{content:"";flex:1;height:1px;background:var(--border);}
+
+  p{margin-bottom:14px;}
+  .wrap > p, section > .wrap p{max-width:66ch;}
+  a{color:var(--rose);text-underline-offset:2px;}
+  strong{font-weight:600;color:var(--ink);}
+  em.pen{
+    font-family:'Nanum Pen Script',cursive;font-style:normal;
+    font-size:1.32em;color:var(--rose);line-height:1;
+  }
+
+  ul,ol{margin:0 0 16px;padding-left:0;list-style:none;}
+  li{position:relative;padding-left:22px;margin-bottom:9px;font-size:14.5px;color:var(--ink-sub);max-width:64ch;}
+  li strong{color:var(--ink);}
+  ul > li::before{
+    content:"";position:absolute;left:4px;top:.62em;
+    width:6px;height:6px;border-radius:50%;background:var(--rose);
+  }
+  .part-b ul > li::before{background:var(--peri);}
+  ol{counter-reset:li;}
+  ol > li{padding-left:30px;}
+  ol > li::before{
+    counter-increment:li;content:counter(li);
+    position:absolute;left:0;top:.05em;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
+    color:var(--rose);
+  }
+  .part-b ol > li::before{color:var(--peri);}
+
+  /* ---------- 카드 / 콜아웃 ---------- */
+  .card{
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:16px;padding:22px 24px;box-shadow:var(--shadow);
+    margin:20px 0;
+  }
+  .card > *:last-child{margin-bottom:0;}
+
+  .callout{
+    border-left:3px solid var(--gold);
+    background:var(--gold-soft);
+    border-radius:0 12px 12px 0;
+    padding:16px 18px;margin:20px 0;
+    font-size:13.5px;color:var(--ink-sub);line-height:1.75;
+  }
+  .callout.warn{border-left-color:var(--rose);background:var(--rose-soft);}
+  .callout b{color:var(--ink);font-weight:600;}
+  .callout > *:last-child{margin-bottom:0;}
+  .callout ul{margin-top:8px;margin-bottom:0;}
+  .callout li{font-size:13px;}
+
+  /* ---------- 흐름 다이어그램 ---------- */
+  .flow{
+    display:flex;flex-wrap:wrap;gap:10px;margin:22px 0;
+    align-items:stretch;
+  }
+  .flow .node{
+    flex:1;min-width:150px;
+    background:var(--surface);border:1px solid var(--border);border-radius:13px;
+    padding:14px 15px;box-shadow:var(--shadow);
+  }
+  .flow .node .who{
+    font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    margin-bottom:6px;color:var(--rose);
+  }
+  .flow .node.s .who{color:var(--peri);}
+  .flow .node .what{font-size:13px;color:var(--ink);font-weight:500;line-height:1.55;}
+  .flow .node .det{font-size:11.5px;color:var(--ink-mute);margin-top:4px;line-height:1.5;}
+  .flow .arr{align-self:center;color:var(--ink-mute);font-size:15px;flex-shrink:0;}
+  @media (max-width:620px){
+    .flow{flex-direction:column;}
+    .flow .arr{transform:rotate(90deg);align-self:flex-start;margin-left:20px;}
+  }
+
+  /* ---------- 표 ---------- */
+  .tbl-scroll{overflow-x:auto;margin:20px 0;border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:var(--surface);min-width:520px;}
+  caption{
+    text-align:left;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-mute);padding:14px 18px 0;
+  }
+  th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.6;}
+  thead th{
+    font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--ink-mute);background:var(--surface-2);
+    border-bottom:1px solid var(--border-strong);
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  td code, td .k{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;
+    color:var(--rose);background:var(--rose-soft);padding:1px 6px;border-radius:5px;white-space:nowrap;
+  }
+  .role-y{color:var(--rose);font-weight:600;}
+  .role-s{color:var(--peri);font-weight:600;}
+  td:first-child{color:var(--ink);font-weight:500;}
+
+  /* ---------- 템플릿(복사 가능) ---------- */
+  .tpl{
+    background:var(--surface);border:1px solid var(--border-strong);
+    border-radius:16px;overflow:hidden;margin:22px 0;box-shadow:var(--shadow);
+  }
+  .tpl-bar{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);
+  }
+  .tpl-bar .tag{
+    font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    padding:3px 9px;border-radius:6px;
+  }
+  .tag.y{color:var(--rose);background:var(--rose-soft);}
+  .tag.s{color:var(--peri);background:var(--peri-soft);}
+  .tpl-bar .title{font-size:13px;font-weight:600;color:var(--ink);}
+  .copy-btn{
+    margin-left:auto;flex-shrink:0;
+    font-family:'IBM Plex Sans KR',sans-serif;font-size:12px;font-weight:600;
+    padding:6px 13px;border-radius:8px;cursor:pointer;
+    border:1px solid var(--border-strong);background:var(--surface);color:var(--ink-sub);
+  }
+  .copy-btn:hover{color:var(--rose);border-color:var(--rose);}
+  .copy-btn.done{color:#fff;background:var(--rose);border-color:var(--rose);}
+  .tpl pre{
+    margin:0;padding:20px 20px 22px;overflow-x:auto;
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    font-size:12.5px;line-height:1.85;color:var(--ink);
+    white-space:pre;tab-size:2;
+  }
+
+  /* ---------- 옵션 pill ---------- */
+  .pills{display:flex;flex-wrap:wrap;gap:7px;margin:6px 0 16px;}
+  .pill{
+    font-size:12px;padding:4px 11px;border-radius:999px;
+    border:1px solid var(--border-strong);color:var(--ink-sub);background:var(--surface);
+  }
+  .pill b{color:var(--ink);font-weight:600;}
+
+  footer{
+    max-width:720px;margin:0 auto;padding:34px 22px 0;border-top:1px solid var(--border);
+    font-size:12.5px;color:var(--ink-mute);line-height:1.8;
+  }
+
+  ::selection{background:var(--rose);color:#fff;}
+  :focus-visible{outline:2px solid var(--rose);outline-offset:2px;border-radius:4px;}
+
+  @media print{
+    .topbar,.theme-btn,.copy-btn,.hero-link{display:none;}
+    body{background:#fff;color:#000;}
+    .card,.tpl,.tbl-scroll,.flow .node{box-shadow:none;}
+    section{margin-bottom:28px;}
+    a{color:#000;text-decoration:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="brand"><span class="mark">✦</span> 유비 디렉터</span>
+    <nav class="topnav">
+      <a href="#summary">30초 요약</a>
+      <a href="#part-a">A · 직접 만들기</a>
+      <a href="#part-b">B · 성준 핸드오프</a>
+      <a href="#roles">역할 분담</a>
+      <a href="#templates">템플릿</a>
+      <a href="#reference">옵션 레퍼런스</a>
+    </nav>
+    <button class="theme-btn" id="themeToggle" aria-label="밝게/어둡게 전환" title="밝게 / 어둡게">◐</button>
+  </div>
+</div>
+
+<main>
+  <header class="hero wrap">
+    <div class="kicker">사용 매뉴얼</div>
+    <h1>시술 사이사이,<br />릴스는 <em>틀</em>만 잡으면 나옵니다</h1>
+    <p class="lede">유비 디렉터는 촬영한 영상·사진을 넣으면 인스타 릴스(세로 9:16)로 자동 편집해 주는 도구입니다. 유비가 직접 돌리는 법과, 시간이 없을 때 성준이 의도를 받아 틀을 갖추는 절차를 함께 담았습니다.</p>
+    <a class="hero-link" href="https://yubi-director.vercel.app" target="_blank" rel="noreferrer">
+      브라우저에서 열기 <span class="u">yubi-director.vercel.app</span>
+    </a>
+  </header>
+
+  <!-- ================= 30초 요약 ================= -->
+  <section id="summary" class="wrap">
+    <h4>30초 요약</h4>
+    <p>소스를 넣으면 → AI가 <strong>연출 방향 3가지</strong>를 제안하고 → 고른 방향으로 <strong>컷 구성·자막·손글씨 말풍선·BGM·색보정</strong>까지 짠 편집 계획을 만듭니다. 검토 화면에서 확인·수정한 뒤 <strong>“이대로 제작”</strong>을 누르면 1~2분 안에 완성본 mp4가 나오고, <strong>“지난 제작물”</strong>에 자동 저장됩니다. 설치 없이 브라우저만 있으면 됩니다.</p>
+
+    <div class="flow" aria-label="제작 흐름">
+      <div class="node"><div class="who">1 · 소스 입력</div><div class="what">찍은 것 설명 + 파일 업로드</div><div class="det">유형 태그 · 시술 · 분위기 · 길이</div></div>
+      <span class="arr">→</span>
+      <div class="node"><div class="who">2 · 연출 선택</div><div class="what">AI 제안 3개 중 하나</div><div class="det">제목 · 훅 · 길이 · 난이도</div></div>
+      <span class="arr">→</span>
+      <div class="node"><div class="who">3 · 검토 &amp; 제작</div><div class="what">미리보기로 확인 → 자막·손글씨 수정 → 제작</div><div class="det">1~2분 렌더 · 다운로드</div></div>
+    </div>
+
+    <h4>두 가지 사용법</h4>
+    <ul>
+      <li><strong>A · 유비가 직접</strong> — 촬영 후 도구에 올려 3단계를 진행. 손에 익으면 5~10분.</li>
+      <li><strong>B · 여유가 없을 때</strong> — 유비는 <span class="role-y">소재와 하고 싶은 말만 5줄</span>로 전달. <span class="role-s">성준</span>이 컷 리스트·자막·필요한 소스를 담은 <strong>콘텐츠 틀</strong>을 짜서 도구까지 돌리고, 유비는 완성본만 확인.</li>
+    </ul>
+    <p style="font-size:13.5px;color:var(--ink-mute)">아래 색 표기 — <span class="role-y">유비가 하는 일</span> / <span class="role-s">성준이 하는 일</span>.</p>
+  </section>
+
+  <!-- ================= PART A ================= -->
+  <section id="part-a" class="part-a">
+    <div class="part-head wrap">
+      <div class="part-glyph">A</div>
+      <div>
+        <h2>유비가 직접 만들 때</h2>
+        <p>촬영 → 업로드 → 3단계. 완벽하게 준비하지 않아도 됩니다. 도구가 부족한 부분을 채우고, 마지막에 유비가 눈으로 확인하는 구조입니다.</p>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <h3><span class="n">A0</span>촬영할 때 챙길 것</h3>
+      <p class="sub">편집을 염두에 두면 결과가 확 좋아지는 것들. 지키기 어려우면 그냥 찍어서 올려도 됩니다.</p>
+      <ul>
+        <li><strong>세로로만</strong> 찍습니다 (9:16). 가로 영상은 위아래가 잘리거나 블러 배경이 들어갑니다.</li>
+        <li>한 장면을 <strong>5초 이상 넉넉히</strong>. 도구가 한 클립에서 여러 컷(줌인 구간 / 다른 표정 구간)을 뽑아 쓰기 때문에 길게 찍을수록 유리합니다.</li>
+        <li><strong>무음이어도 괜찮습니다</strong> — BGM이 자동으로 깔립니다. 손 떨림·흔들림도 그대로 올리세요, 연출에 반영됩니다.</li>
+        <li>유형별로 조금씩 확보: <em>시술 전 / 시술 중 클로즈업 / 시술 후 결과 / 고객 반응 / 거울 확인 / 손·도구 클로즈업 / Before·After / 설명 셀카</em>.</li>
+      </ul>
+
+      <h3><span class="n">A1</span>소스 입력 <span style="font-weight:400;color:var(--ink-mute);font-size:15px">— “오늘 어떤 영상 찍었어요?”</span></h3>
+      <ol>
+        <li>큰 칸에 <strong>말하듯이</strong> 적습니다. <em class="pen">“이마라인 클로즈업 찍었는데 좀 흔들렸어요. 시술 전 사진이랑 끝나고 거울 보며 좋아하는 것도 잠깐.”</em> 이 정도면 충분합니다.</li>
+        <li>영상·사진을 <strong>업로드</strong>하고, 각 파일 옆 드롭다운에서 <strong>유형</strong>을 골라줍니다 (시술 중 클로즈업, 고객 반응 …).</li>
+        <li>소스가 부족하면 <strong>추가 소스 검색</strong> — <span class="k">영상(B-roll)</span>은 도입·전환·분위기 보강용, <span class="k">사진(분위기 참고)</span>은 눈으로만 참고. 핵심 장면(시술 과정·반응)은 직접 찍은 걸로 채우는 게 좋습니다.</li>
+        <li><strong>시술 종류 · 분위기 · 영상 길이</strong>를 선택합니다. 길이는 <span class="k">짧게 15~20초</span> / <span class="k">표준 20~30초</span> / <span class="k">스토리 30~45초</span>.</li>
+        <li>BGM은 안 올리면 분위기에 맞는 무료 음원이 자동으로 들어갑니다. 직접 올리고 싶으면 오디오 파일 업로드.</li>
+        <li><strong>[연출 제안 받기]</strong>.</li>
+      </ol>
+      <div class="callout"><b>업로드 없이 CapCut로 직접 편집</b>하고 싶을 때는 파일을 올리지 말고 다음 화면에서 <b>[편집 지시서 받기]</b>를 누르면, 따라 하기만 하면 되는 CapCut 단계별 지시서(메뉴 경로·자막 문구·BGM 검색어)가 나옵니다.</div>
+
+      <h3><span class="n">A2</span>연출 방향 고르기</h3>
+      <p>AI가 이 소스로 만들 수 있는 릴스 <strong>3가지</strong>를 카드로 보여줍니다 — 제목, 첫 3초 훅 문구, 핵심 포인트, 예상 길이, 포맷(Before/After형·스토리텔링형·정보형), 난이도. 하나 눌러 선택하고:</p>
+      <ul>
+        <li>파일을 올렸으면 → <strong>[편집 계획 만들기]</strong> (도구가 자동 편집)</li>
+        <li>직접 편집할 거면 → <strong>[편집 지시서만 보기]</strong></li>
+      </ul>
+
+      <h3><span class="n">A3</span>검토하고 제작하기</h3>
+      <p class="sub">여기가 핵심입니다. 제작 전에 반드시 이 화면을 훑어봅니다.</p>
+      <h4>미리보기 스크러버</h4>
+      <ul>
+        <li>시간 슬라이더를 움직이면 그 순간의 <strong>컷 화면 + 자막 + 손글씨</strong>가 세로 화면 비율로 합성돼 보입니다.</li>
+        <li>색보정·슬로우모션·컷 전환은 여기서 <em>안 보이고</em> 실제 제작 때 더해집니다. 배치 확인용이에요.</li>
+      </ul>
+      <h4>자막 편집기</h4>
+      <ul>
+        <li>문구와 <strong>시작·끝 초</strong>를 직접 고칩니다. 줄을 추가·삭제할 수 있고, 비우면 제작에서 빠집니다.</li>
+        <li>자막은 항상 <strong>한 줄</strong>로 나갑니다 — 긴 문장은 글씨가 자동으로 작아지니, 짧게 끊어 여러 줄로 나누는 편이 낫습니다.</li>
+      </ul>
+      <h4>손글씨 주석 편집기</h4>
+      <ul>
+        <li>먼저 <strong>표현 유형</strong>을 하나 고르면 말풍선·색·장식·화살표가 한 번에 세팅됩니다 (질문 던지기 / 핵심 강조 / 콕 집어 지목 / 감성 한마디 / 마무리 CTA / 미니멀).</li>
+        <li>그다음 필요하면 말풍선 모양·색·장식 글자(♡ ✦)·화살표·위치(가로·세로 %)·배경 판을 미세 조정. 오른쪽 <strong>미리보기</strong>에 즉시 반영됩니다.</li>
+        <li>문구는 <strong>12자 이내</strong>로 짧고 강하게. 감정 영상이라면 1~3개면 충분합니다.</li>
+      </ul>
+      <h4>제작</h4>
+      <ul>
+        <li><strong>[이대로 제작]</strong> → 1~2분 → 완성본 재생·다운로드. “지난 제작물” 갤러리에 자동으로 쌓입니다.</li>
+        <li>마음에 안 들면 <strong>[계획 다시 짜기]</strong>(같은 연출로 재구성) 또는 <strong>[연출 다시 고르기]</strong>(2단계로).</li>
+      </ul>
+
+      <h3><span class="n">A!</span>자주 걸리는 것</h3>
+      <div class="callout warn">
+        <ul>
+          <li><b>원본 이미지에 글자가 박혀 있으면</b> 최종본에도 보입니다 — 스토리보드 가이드 텍스트(“화면 하단 중앙”, “페이드인”)나 워터마크가 있는 컷은 깨끗한 버전으로 교체하세요.</li>
+          <li><b>AI가 컷 순서를 바꿀 수 있습니다</b> — 감정 회상형 연출은 컷을 재배치합니다. 스토리 순서(촬영 순서)를 지키려면 순차형 연출을 고르고, 검토 화면에서 자막이 맞는 컷에 얹혔는지 눈으로 확인하세요.</li>
+          <li>제작은 최대 2분까지입니다. 아주 긴 영상은 스토리(30~45초)로 잡아도 그 안에 맞춰 압축됩니다.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PART B ================= -->
+  <section id="part-b" class="part-b">
+    <div class="part-head wrap">
+      <div class="part-glyph">B</div>
+      <div>
+        <h2>유비가 여유가 없을 때 — 성준 핸드오프</h2>
+        <p>기획·소스 준비·연출에 신경 쓸 시간이 없을 때. 유비는 <span class="role-y">의도만</span> 넘기고, <span class="role-s">성준</span>이 그 의도를 도구가 삼킬 수 있는 <strong>콘텐츠 틀</strong>로 바꿉니다.</p>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="flow" aria-label="핸드오프 흐름">
+        <div class="node"><div class="who">유비</div><div class="what">소재 + 하고 싶은 말 5줄</div><div class="det">음성 메모 / 카톡 / 사진 몇 장</div></div>
+        <span class="arr">→</span>
+        <div class="node s"><div class="who">성준</div><div class="what">콘텐츠 틀 작성</div><div class="det">컷 리스트 · 자막 · 필요 소스 목록</div></div>
+        <span class="arr">→</span>
+        <div class="node s"><div class="who">성준 / 유비</div><div class="what">소스 채우기</div><div class="det">추가 촬영 요청 · Pexels 보강</div></div>
+        <span class="arr">→</span>
+        <div class="node s"><div class="who">성준</div><div class="what">도구 실행 → 검토 → 제작</div><div class="det">틀대로 자막·손글씨 교체</div></div>
+        <span class="arr">→</span>
+        <div class="node"><div class="who">유비</div><div class="what">완성본 확인 · OK</div><div class="det">수정 요청 1회 가능</div></div>
+      </div>
+
+      <h3><span class="n">B1</span>유비가 넘기는 것 — 5줄이면 됩니다</h3>
+      <p class="sub">완성된 기획이 아니라 <strong>재료</strong>만. 음성 메모로 말해도 되고, 아래 항목만 있으면 성준이 틀을 잡을 수 있습니다.</p>
+      <ol>
+        <li><strong>오늘 소재 한 줄</strong> — 무슨 시술, 무슨 일이 있었는지. <em class="pen">“이마라인 첫 상담 온 20대 손님, 고민 엄청 하셨어”</em></li>
+        <li><strong>하고 싶은 말 / 느낌</strong> — 왜 이걸 올리고 싶은지. <em class="pen">“고민되는 거 당연하다고, 부담 없이 오시라고”</em></li>
+        <li><strong>찍어둔 것</strong> — 있으면 파일 그대로 전송, 없으면 “없음”.</li>
+        <li><strong>분위기</strong> — 감동·진솔 / 전문·신뢰 / 밝고 활기 / 정보·교육 / 친근·일상 중 하나.</li>
+        <li><strong>언제까지 / 급한지</strong>.</li>
+      </ol>
+      <p>→ <a href="#tpl-intake">아래 “인테이크 템플릿”</a>을 카톡에 붙여 쓰면 됩니다.</p>
+
+      <h3><span class="n">B2</span>성준이 짜는 콘텐츠 틀</h3>
+      <p class="sub">한 장짜리 기획 프레임. 각 항목이 도구 입력값과 1:1로 대응하도록 만들어, 나중에 그대로 옮겨 넣기만 하면 됩니다.</p>
+      <div class="card">
+        <h4 style="margin-top:0">틀에 들어가는 항목</h4>
+        <ul>
+          <li><strong>에피소드 코드 / 제목</strong> — <code>IG_R02</code> 같은 번호 + 한 줄 제목.</li>
+          <li><strong>한 줄 콘셉트 &amp; 훅</strong> — 영상이 말하려는 것 한 문장 + 첫 3초에 뜰 자막.</li>
+          <li><strong>도구 입력값</strong> — 소스 유형 태그 / 시술 종류 / 분위기 / 영상 길이 / 색보정 / BGM. (<a href="#reference">옵션 레퍼런스</a>에서 골라 확정)</li>
+          <li><strong>소스 체크리스트</strong> — ① 이미 있음(유비 전달) ② <span class="role-y">추가 촬영 필요</span> ③ <span class="role-s">Pexels로 채움</span>. 세 칸으로 나눠 명확히.</li>
+          <li><strong>컷 리스트</strong> — 씬 번호 · 화면 내용 · 길이(초) · 연출(줌인/줌아웃/슬로모/고정) · 자막 · 손글씨.</li>
+          <li><strong>자막 전체 스크립트</strong> — 초 단위, 한 줄씩, 시간 안 겹치게.</li>
+          <li><strong>손글씨 주석 1~3개</strong> — 문구(12자) · 노출 초 · 표현 유형 · 위치.</li>
+          <li><strong>검토 체크리스트</strong> — 제작 전 눈으로 볼 항목 (지시문이 자막에 안 섞였나 / 손글씨가 얼굴 안 가리나 / 컷 순서).</li>
+        </ul>
+      </div>
+      <p>→ <a href="#tpl-frame">아래 “콘텐츠 틀 템플릿”</a>에 빈칸이 다 들어 있습니다.</p>
+      <div class="callout"><b>의도 → 틀로 옮길 때 성준이 정하는 것:</b> 유비의 “하고 싶은 말”을 <b>훅 한 문장 + 자막 스크립트</b>로 풀고, “느낌”을 <b>분위기·색보정·BGM·연출 톤</b>으로 번역하고, 소재에 맞는 <b>컷 순서와 길이</b>를 잡습니다. 유비가 확인할 수 있게 훅과 자막은 유비 말투 그대로 씁니다.</div>
+
+      <h3><span class="n">B3</span>소스 채우기</h3>
+      <ul>
+        <li><span class="role-y">추가 촬영이 필요하면</span> — 성준이 <a href="#tpl-shoot">“촬영 요청 카드”</a> 한 장을 보냅니다. 무엇을·어떻게·세로로·몇 초. 틀의 소스 체크리스트에서 그대로 뽑아 씁니다.</li>
+        <li><span class="role-s">Pexels 보강</span> — 도입/전환/분위기 컷은 성준이 도구의 “추가 소스 검색”에서 미리 담아둡니다. 검색어는 영어로 (<code>eyebrow makeup closeup</code>, <code>calm skincare studio</code>).</li>
+        <li>둘 다 안 되면 — 가진 소스만으로 되는 짧은 버전(15~20초)으로 틀을 다시 잡습니다.</li>
+      </ul>
+
+      <h3><span class="n">B4</span>도구에 넣고 마무리</h3>
+      <p>소스가 모이면 성준이 도구를 <strong>A1~A3 그대로</strong> 진행합니다. 검토 화면에서 AI가 만든 자막·손글씨를 <strong>틀 문서 내용으로 교체</strong>하고, 체크리스트를 확인한 뒤 제작.</p>
+      <h4>누가 도구를 조작하나 — 두 가지</h4>
+      <ul>
+        <li><strong>성준이 끝까지</strong> — 제작·검토까지 성준이 하고, 유비에게 완성본 링크만 전달. 유비는 보고 OK 또는 수정 한 줄.</li>
+        <li><strong>마지막만 유비</strong> — 성준이 소스 + 틀을 준비해 두고, 유비는 도구에서 파일 올리고 연출 고른 뒤 검토 화면에서 <strong>“이대로 제작”만</strong>. 틀 문서를 옆에 띄워두고 자막만 대조하면 2~3분.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= 역할 분담 ================= -->
+  <section id="roles" class="wrap">
+    <h4>역할 분담 한눈에</h4>
+    <div class="tbl-scroll">
+      <table>
+        <caption>단계별 담당</caption>
+        <thead>
+          <tr><th>단계</th><th>유비 여유 있을 때</th><th>유비 바쁠 때</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>소재 · 의도</td><td class="role-y">유비</td><td class="role-y">유비 (5줄 메모)</td></tr>
+          <tr><td>기획 틀</td><td class="role-y">유비 (머릿속)</td><td class="role-s">성준 (틀 문서)</td></tr>
+          <tr><td>소스 촬영</td><td class="role-y">유비</td><td class="role-y">유비 (촬영 카드 받고)</td></tr>
+          <tr><td>추가 소스 (B-roll)</td><td class="role-y">유비 or 자동</td><td class="role-s">성준 (Pexels)</td></tr>
+          <tr><td>도구 조작 (1~2단계)</td><td class="role-y">유비</td><td class="role-s">성준</td></tr>
+          <tr><td>자막 · 손글씨 검토</td><td class="role-y">유비</td><td class="role-s">성준 (틀대로)</td></tr>
+          <tr><td>제작 실행</td><td class="role-y">유비</td><td class="role-s">성준 또는 <span class="role-y">유비(마지막만)</span></td></tr>
+          <tr><td>최종 확인</td><td class="role-y">유비</td><td class="role-y">유비 (완성본 보고 OK)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 템플릿 ================= -->
+  <section id="templates" class="wrap">
+    <h4>붙여넣기 템플릿</h4>
+    <p style="font-size:13.5px;color:var(--ink-sub)">각 블록 오른쪽 <strong>복사</strong> 버튼을 누르면 그대로 복사됩니다. 카톡·메모장 어디든 붙여 쓰세요.</p>
+
+    <div class="tpl" id="tpl-intake">
+      <div class="tpl-bar">
+        <span class="tag y">유비 → 성준</span>
+        <span class="title">릴스 소재 인테이크</span>
+        <button class="copy-btn" data-copy="src-intake">복사</button>
+      </div>
+      <pre id="src-intake">[유비 → 성준 · 릴스 소재]
+
+1. 오늘 소재 한 줄 :
+2. 하고 싶은 말 / 느낌 :
+3. 찍어둔 것 : (파일 첨부 / 없음)
+4. 분위기 : 감동·진솔 / 전문·신뢰 / 밝고 활기 / 정보·교육 / 친근·일상
+5. 언제까지 :</pre>
+    </div>
+
+    <div class="tpl" id="tpl-frame">
+      <div class="tpl-bar">
+        <span class="tag s">성준 작성</span>
+        <span class="title">콘텐츠 틀 (기획 프레임)</span>
+        <button class="copy-btn" data-copy="src-frame">복사</button>
+      </div>
+      <pre id="src-frame">■ 에피소드
+  코드 / 제목 :  IG_R__   «제목»
+  한 줄 콘셉트 :
+  훅 (첫 3초 자막) :
+
+■ 도구 입력값
+  소스 유형 태그 :  시술 전 / 시술 중 클로즈업 / 시술 후 결과 / 고객 반응 /
+                   거울 확인 / 손·도구 클로즈업 / Before·After / 설명 셀카 / 스톡 B-roll
+  시술 종류 :  이마라인 교정 / 눈썹 반영구 / 복합 시술 / 상담·설명 / 기타
+  분위기 :  감동·진솔 / 전문·신뢰 / 밝고 활기 / 정보·교육 / 친근·일상
+  영상 길이 :  짧게(15~20s) / 표준(20~30s) / 스토리(30~45s)
+  색보정 :  warm / cool / moody / vivid / neutral
+  BGM :  calm-piano / upbeat-reel / trust-corporate  (또는 직접 업로드)
+
+■ 소스 체크리스트
+  [있음] 유비 전달 :
+    -
+  [촬영 요청] 유비에게 :
+    - «무엇 · 어떻게 · 세로 · 몇 초»
+  [Pexels] 성준 :
+    - «영어 검색어»
+
+■ 컷 리스트
+   # | 화면 내용                | 길이 | 연출   | 자막                    | 손글씨
+   1 |                          | 5s  | 줌인   |                         |
+   2 |                          | 8s  | 줌아웃 |                         |
+   3 |                          |     |        |                         |
+
+■ 자막 스크립트  (초 단위 · 한 줄씩 · 겹치지 않게)
+   0.6–4.7   "..."
+   5.5–8.4   "..."
+
+■ 손글씨 주석  (1~3개)
+   «문구 12자 이내» | 노출 s~s | 표현유형 | 위치
+   표현유형 = 질문던지기 / 핵심강조 / 콕집어지목 / 감성한마디 / 마무리CTA / 미니멀
+
+■ 제작 전 검토 체크
+   [ ] 자막에 연출 지시문("페이드인" 등)이 섞이지 않았나
+   [ ] 손글씨가 인물 얼굴을 가리지 않나
+   [ ] 컷 순서가 의도한 스토리대로인가
+   [ ] 원본 이미지에 박힌 글자/워터마크가 없나</pre>
+    </div>
+
+    <div class="tpl" id="tpl-shoot">
+      <div class="tpl-bar">
+        <span class="tag s">성준 → 유비</span>
+        <span class="title">촬영 요청 카드</span>
+        <button class="copy-btn" data-copy="src-shoot">복사</button>
+      </div>
+      <pre id="src-shoot">[촬영 요청 · IG_R__ ]
+
+· 세로(9:16)로만
+· 각 컷 5초 이상 넉넉히 · 무음 OK · 흔들려도 그대로
+
+  1) 무엇 :            / 어떻게 :            / 길이 :
+  2) 무엇 :            / 어떻게 :            / 길이 :
+  3) 무엇 :            / 어떻게 :            / 길이 :
+
+받으면 그대로 전송해 주세요. 편집은 제가 합니다.</pre>
+    </div>
+  </section>
+
+  <!-- ================= 옵션 레퍼런스 ================= -->
+  <section id="reference" class="wrap">
+    <h4>옵션 레퍼런스</h4>
+    <p style="font-size:13.5px;color:var(--ink-sub)">틀을 짜거나 검토 화면에서 고를 때 참고. 값은 도구에 있는 그대로입니다.</p>
+
+    <h3 style="margin-top:26px">영상 길이</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>값</th><th>길이</th><th>샷 수</th><th>자막 수</th><th>쓰임</th></tr></thead>
+        <tbody>
+          <tr><td><span class="k">짧게</span></td><td>15~20초</td><td>5~8</td><td>4~6</td><td>가장 강한 장면만. 훅 → 핵심 → 마지막 한 방.</td></tr>
+          <tr><td><span class="k">표준</span></td><td>20~30초</td><td>8~12</td><td>5~8</td><td>기본. Before/After·정보형.</td></tr>
+          <tr><td><span class="k">스토리</span></td><td>30~45초</td><td>8~14</td><td>8~14</td><td>감정선(도입→전개→클라이맥스→마무리). 컷을 순서대로.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>연출 효과 (컷별)</h3>
+    <div class="pills">
+      <span class="pill"><b>고정</b> static — 효과 없음</span>
+      <span class="pill"><b>줌인</b> zoom-in — 서서히 확대, 표정·디테일 강조</span>
+      <span class="pill"><b>줌아웃</b> zoom-out — 서서히 축소, 고립감·마무리</span>
+      <span class="pill"><b>슬로우모션</b> slow-mo — 절반 속도, 감성적 순간</span>
+    </div>
+    <p style="font-size:12.5px;color:var(--ink-mute)">최소 절반 이상의 컷에 효과를 넣는 게 기본값입니다.</p>
+
+    <h3>색보정</h3>
+    <div class="pills">
+      <span class="pill"><b>warm</b> 따뜻한 톤</span>
+      <span class="pill"><b>cool</b> 차분한 블루</span>
+      <span class="pill"><b>moody</b> 무게감 있는 저채도</span>
+      <span class="pill"><b>vivid</b> 선명하고 발랄</span>
+      <span class="pill"><b>neutral</b> 자연스럽게 살짝만</span>
+    </div>
+
+    <h3>BGM (내장 · 무료 라이선스)</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>키</th><th>느낌</th><th>어울리는 분위기</th></tr></thead>
+        <tbody>
+          <tr><td><span class="k">calm-piano</span></td><td>잔잔한 피아노</td><td>감동적 · 진솔한</td></tr>
+          <tr><td><span class="k">upbeat-reel</span></td><td>밝고 경쾌한 릴스 비트</td><td>밝고 활기찬</td></tr>
+          <tr><td><span class="k">trust-corporate</span></td><td>차분하고 신뢰감 있는 톤</td><td>전문적 · 정보형</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:12.5px;color:var(--ink-mute)">직접 올린 오디오 파일이 있으면 그게 우선입니다.</p>
+
+    <h3>손글씨 표현 유형</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>유형</th><th>세팅</th><th>쓰임</th></tr></thead>
+        <tbody>
+          <tr><td>질문 던지기</td><td>구름 말풍선 · 흰색 · ✦</td><td>오프닝 훅, 궁금증</td></tr>
+          <tr><td>핵심 강조</td><td>동그란 말풍선 · 핑크 · 아래 화살표</td><td>중요한 한 장면 지목</td></tr>
+          <tr><td>콕 집어 지목</td><td>각진 말풍선 · 라벤더 · 옆 화살표</td><td>화면 특정 지점</td></tr>
+          <tr><td>감성 한마디</td><td>구름 말풍선 · 라벤더 · ♡</td><td>감정 저점·여운</td></tr>
+          <tr><td>마무리 CTA</td><td>각진 말풍선 · 핑크 · 위 화살표</td><td>엔딩, 방문 유도</td></tr>
+          <tr><td>미니멀</td><td>말풍선 없이 글씨만</td><td>사진 위 스토리풍</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:12.5px;color:var(--ink-mute)">유형을 고른 뒤 말풍선·색·장식·화살표·위치를 개별로 바꿀 수 있습니다. 편집기에서 최대 8개, 감정 영상은 1~3개 권장.</p>
+
+    <h3>알아두면 좋은 한계</h3>
+    <ul>
+      <li>완성본은 세로 <strong>1080×1920</strong> 고정. 제작 시간은 최대 2분.</li>
+      <li>결과물은 서버에 저장되고 <strong>“지난 제작물”</strong>에서 다시 볼 수 있습니다 — 로컬에 자동 저장되진 않으니 필요하면 다운로드.</li>
+      <li>자막 폰트·색(흰 글씨 + 반투명 검정 판)은 고정입니다. 색·위치를 바꾸는 건 손글씨 주석 쪽.</li>
+    </ul>
+  </section>
+
+  <footer>
+    유비 디렉터 · <span style="font-family:'IBM Plex Mono',monospace">yubi-director.vercel.app</span><br />
+    이 매뉴얼은 도구가 바뀌면 함께 갱신합니다. 막히는 부분은 성준에게.
+  </footer>
+</main>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('themeToggle');
+    var KEY = 'yubi-manual-theme';
+    try {
+      var saved = localStorage.getItem(KEY);
+      if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+    } catch (e) {}
+    function current() {
+      var explicit = root.getAttribute('data-theme');
+      if (explicit) return explicit;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    btn.addEventListener('click', function () {
+      var next = current() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY, next); } catch (e) {}
+    });
+
+    document.querySelectorAll('.copy-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var el = document.getElementById(b.getAttribute('data-copy'));
+        if (!el) return;
+        var text = el.innerText;
+        var done = function () {
+          var old = b.textContent;
+          b.textContent = '복사됨';
+          b.classList.add('done');
+          setTimeout(function () { b.textContent = old; b.classList.remove('done'); }, 1800);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () { fallback(text, done); });
+        } else {
+          fallback(text, done);
+        }
+      });
+    });
+    function fallback(text, done) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  })();
+</script>
+</body>
+</html>
