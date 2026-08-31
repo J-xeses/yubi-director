@@ -258,6 +258,9 @@ export async function POST(request) {
           text: a.text, position: a.position, bubble: a.bubble, color: a.color,
           deco: Array.isArray(a.deco) ? a.deco : String(a.deco || '').split(',').map((s) => s.trim()).filter(Boolean),
           arrow: !!a.arrow, arrowDir: a.arrowDir || a.arrow_direction,
+          backing: a.backing !== false,
+          x: a.x, y: a.y, fontSize: a.fontSize,
+          arrowTarget: Array.isArray(a.arrowTarget) ? a.arrowTarget : undefined,
         }))
         // -loop 1 이미지는 무한 입력이라 -t로 바운드하지 않으면 filtergraph가 끝나지 않는다.
         inputArgs.push('-loop', '1', '-t', String(Math.max(1, Number(totalDuration) || 30)), '-i', png)

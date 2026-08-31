@@ -53,7 +53,8 @@ function sanitizeAnnotations(annotations, totalDuration) {
       const decoRaw = Array.isArray(a.deco)
         ? a.deco
         : String(a.deco || '').split(',').map((s) => s.trim()).filter(Boolean)
-      return {
+      const clamp01 = (v) => Math.max(0, Math.min(1, Number(v)))
+      const out = {
         text: String(a.text).replace(/\s*\r?\n\s*/g, ' ').trim().slice(0, 40),
         start: Number(start.toFixed(2)),
         end: Number(end.toFixed(2)),
@@ -65,7 +66,15 @@ function sanitizeAnnotations(annotations, totalDuration) {
         arrowDir: VALID_ANN_ARROW_DIR.has(a.arrowDir || a.arrow_direction)
           ? (a.arrowDir || a.arrow_direction)
           : 'down',
+        backing: a.backing !== false,
       }
+      if (a.x != null && isFinite(Number(a.x))) out.x = Number(clamp01(a.x).toFixed(3))
+      if (a.y != null && isFinite(Number(a.y))) out.y = Number(clamp01(a.y).toFixed(3))
+      if (Number(a.fontSize) > 0) out.fontSize = Math.max(28, Math.min(96, Math.round(Number(a.fontSize))))
+      if (Array.isArray(a.arrowTarget) && a.arrowTarget.length === 2) {
+        out.arrowTarget = [Number(clamp01(a.arrowTarget[0]).toFixed(3)), Number(clamp01(a.arrowTarget[1]).toFixed(3))]
+      }
+      return out
     })
     .filter((a) => a.text && a.end > a.start)
 }
@@ -156,6 +165,8 @@ ${clipList}
   - color: "white" | "pink" | "lavender"
   - deco: 장식 글자 배열, 예 ["♡","✦"] (없으면 [])
   - arrow: true면 화살표 표시, arrowDir: "up" | "down" | "left" | "right"
+  - backing: 기본 true(글자 뒤 반투명 판). 배경이 어둡거나 인스타 스토리처럼 사진 위에
+    바로 얹고 싶으면 false (글자 외곽선만)
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {

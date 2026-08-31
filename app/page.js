@@ -62,7 +62,7 @@ function blankAnnotation(totalDuration) {
   return {
     text: '', start: Math.max(0, mid - 1), end: mid + 2,
     position: 'top_center', bubble: 'cloud', color: 'white',
-    deco: [], arrow: false, arrowDir: 'down', _preset: 'custom',
+    deco: [], arrow: false, arrowDir: 'down', backing: true, _preset: 'custom',
   }
 }
 const BGM_LABELS = {
@@ -166,6 +166,7 @@ function AnnotationPreview({ scene }) {
   const key = JSON.stringify({
     t: scene.text || '', b: scene.bubble, c: scene.color,
     d: scene.deco, p: scene.position, a: scene.arrow, ad: scene.arrowDir,
+    bk: scene.backing, x: scene.x, y: scene.y, fs: scene.fontSize, at: scene.arrowTarget,
   })
   useEffect(() => {
     let cancelled = false
@@ -173,7 +174,10 @@ function AnnotationPreview({ scene }) {
     paint()
     // 웹폰트가 늦게 로드되면 한 번 더 그린다
     if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
-      document.fonts.load('700 64px "Noto Sans KR"').then(paint).catch(() => {})
+      Promise.all([
+        document.fonts.load('64px "Nanum Pen Script"'),
+        document.fonts.load('64px "Noto Sans KR"'),
+      ]).then(paint).catch(() => {})
     }
     return () => { cancelled = true }
   }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -320,6 +324,34 @@ function AnnotationEditor({ annotations, totalDuration, onChange }) {
                   {Object.entries(ANN_ARROW_DIR_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               )}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: 8, alignItems: 'end' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text)', paddingBottom: 5 }}>
+              <input type="checkbox" checked={a.backing !== false}
+                onChange={(e) => update(i, { backing: e.target.checked })} />
+              배경 판
+            </label>
+            <div>
+              <label style={annLabelStyle}>가로 % (선택 · 비우면 위치 자동)</label>
+              <input type="number" min="0" max="100" placeholder="—"
+                value={a.x != null ? Math.round(a.x * 100) : ''}
+                onChange={(e) => {
+                  const v = e.target.value
+                  update(i, v === '' ? { x: undefined } : { x: Math.max(0, Math.min(1, Number(v) / 100)) })
+                }}
+                style={{ ...annFieldStyle, width: '100%' }} />
+            </div>
+            <div>
+              <label style={annLabelStyle}>세로 %</label>
+              <input type="number" min="0" max="100" placeholder="—"
+                value={a.y != null ? Math.round(a.y * 100) : ''}
+                onChange={(e) => {
+                  const v = e.target.value
+                  update(i, v === '' ? { y: undefined } : { y: Math.max(0, Math.min(1, Number(v) / 100)) })
+                }}
+                style={{ ...annFieldStyle, width: '100%' }} />
             </div>
           </div>
           </div>
