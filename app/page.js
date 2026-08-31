@@ -1080,7 +1080,7 @@ export default function Page() {
                           {c.source === 'stock' ? `Pexels · ${c.photographer || '스톡 영상'}` : c.file.name}
                         </span>
                         {c.status === 'uploading' && <span style={{ color: 'var(--text-muted)' }}> · 업로드 중...</span>}
-                        {c.status === 'error' && <span style={{ color: 'var(--rose)' }}> · 업로드 실패</span>}
+                        {c.status === 'error' && <span style={{ color: 'var(--danger)' }}> · 업로드 실패</span>}
                         {c.status === 'done' && !c.isImage && c.duration && (
                           <span style={{ color: 'var(--text-muted)' }}> · {c.duration.toFixed(1)}초</span>
                         )}
