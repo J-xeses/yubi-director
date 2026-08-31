@@ -727,6 +727,18 @@
       try { localStorage.setItem(KEY, next); } catch (e) {}
     });
 
+    document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        var id = a.getAttribute('href').slice(1);
+        var target = id && document.getElementById(id);
+        if (!target) return;
+        e.preventDefault();
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        try { target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); }
+        catch (err) { target.scrollIntoView(); }
+      });
+    });
+
     document.querySelectorAll('.copy-btn').forEach(function (b) {
       b.addEventListener('click', function () {
         var el = document.getElementById(b.getAttribute('data-copy'));
