@@ -176,6 +176,7 @@ function AnnotationPreview({ scene }) {
     // 웹폰트가 늦게 로드되면 한 번 더 그린다
     if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
       Promise.all([
+        document.fonts.load('700 64px "Gaegu"'),
         document.fonts.load('64px "Nanum Pen Script"'),
         document.fonts.load('64px "Noto Sans KR"'),
       ]).then(paint).catch(() => {})

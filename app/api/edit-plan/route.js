@@ -44,7 +44,7 @@ function sanitizeAnnotations(annotations, totalDuration) {
   if (!Array.isArray(annotations)) return []
   return annotations
     .filter((a) => a && String(a.text || '').trim())
-    .slice(0, 4)
+    .slice(0, 8)
     .map((a) => {
       let start = Math.max(0, Number(a.start) || 0)
       let end = Number(a.end) || start + 2.5
@@ -157,18 +157,23 @@ ${clipList}
   - "upbeat-reel": 밝고 경쾌한 릴스 비트, 활기찬 톤
   - "trust-corporate": 차분하고 신뢰감 있는 톤, 전문적/정보형
 - colorGrade는 분위기에 맞게 하나 고르세요: "warm"(따뜻한 톤), "cool"(차분한 블루톤), "moody"(무게감 있는 저채도), "vivid"(선명하고 발랄함), "neutral"(자연스럽게 살짝만 보정)
-- "annotations"는 손으로 쓴 듯한 손글씨 주석입니다. 자막과 별개로, 영상에서 가장 강조하고 싶은
-  순간 1~3군데에만 짧게(최대 12자) 얹으세요. 후킹 문구, 반전 포인트, 마지막 CTA 등에 적합합니다.
-  없어도 되면 빈 배열로 두세요. 각 항목:
-  - text: 손글씨 문구 (짧고 강하게, 최대 12자)
-  - start / end: 전체 타임라인 기준 노출 시각(초). 자막과 겹쳐도 됩니다.
-  - position: "top_center" | "top_left" | "top_right" | "center" | "bottom_center" | "bottom_left" | "bottom_right"
-  - bubble: "cloud"(구름 말풍선) | "oval"(동그란 말풍선) | "arrow_box"(각진 말풍선) | "none"(말풍선 없음)
-  - color: "white" | "pink" | "lavender"
-  - deco: 장식 글자 배열, 예 ["♡","✦"] (없으면 [])
-  - arrow: true면 화살표 표시, arrowDir: "up" | "down" | "left" | "right"
-  - backing: 기본 true(밝은 배경에서도 잘 보이게 그림자를 진하게). 어두운 장면이면 false
-  - underline: true면 손그림 점선 밑줄. 영상 도입 타이틀 문구에 어울림 (bubble "none"일 때만)
+- "annotations"는 손으로 쓴 듯한 손글씨 주석입니다(인스타 스토리 꾸미기 스타일). 자막과 별개로,
+  화면을 풍성하게 채우도록 3~6개를 여러 위치에 흩뿌리세요. 종류를 섞으면 좋습니다:
+    · 도입 타이틀 (bubble "none" + underline, 큰 글씨)
+    · 감정/반전 한마디 (cloud 말풍선 + deco)
+    · 화면 속 사물·장면을 지목하는 짧은 라벨 ("← 직접 조색한 색소" 처럼 arrow로 겨냥)
+    · 여백에 툭 던지는 혼잣말 (bubble "none", 작은 글씨, 기울임)
+  같은 시간대에 2~3개가 겹쳐 보여도 됩니다. 각 항목:
+  - text: 손글씨 문구 (짧고 강하게, 최대 14자. \n로 줄바꿈 가능)
+  - start / end: 전체 타임라인 기준 노출 시각(초)
+  - position 또는 x/y(0~1 비율, 사물 옆에 붙이고 싶을 때)
+  - bubble: "cloud" | "oval" | "arrow_box" | "none"
+  - color: "white"(기본) | "pink" | "lavender"
+  - deco: 장식 글자 배열 ["♡","✦"] (없으면 [])
+  - arrow: true + arrowDir "up"|"down"|"left"|"right", 또는 arrowTarget [x,y](0~1)로 특정 지점 겨냥
+  - backing: 기본 true. 어두운 장면이면 false
+  - underline: true면 물결 밑줄 + 위쪽 틱마크 (도입 타이틀용, bubble "none"일 때만)
+  - fontSize: 타이틀 56~68, 일반 40~50, 작은 라벨 30~38
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
