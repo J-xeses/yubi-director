@@ -14,6 +14,7 @@ const MOOD_TAGS = ['감동적/진솔한', '전문적/신뢰감', '밝고 활기�
 const LENGTH_TAGS = [
   { key: 'short', label: '짧게 · 임팩트 (15~20초)' },
   { key: 'standard', label: '표준 (20~30초)' },
+  { key: 'story', label: '스토리 (30~45초)' },
 ]
 const EFFECT_LABELS = {
   'static': '고정',
@@ -366,8 +367,52 @@ function AnnotationEditor({ annotations, totalDuration, onChange }) {
 }
 
 // 편집 계획 상세 — 제작 전 검토 화면과 완성 후 결과 화면에서 공용으로 쓴다.
+// 자막 편집기 — 검토 화면에서 문구/시작·끝 초를 직접 고칠 수 있게.
+function CaptionEditor({ captions, totalDuration, onChange }) {
+  const list = Array.isArray(captions) ? captions : []
+  const update = (i, patch) => onChange(list.map((c, idx) => (idx === i ? { ...c, ...patch } : c)))
+  const add = () => {
+    const last = list[list.length - 1]
+    const s = last ? Number(last.end) : 0
+    onChange([...list, { text: '', start: Number(s.toFixed(2)), end: Number((s + 3).toFixed(2)) }])
+  }
+  const remove = (i) => onChange(list.filter((_, idx) => idx !== i))
+  return (
+    <div className="dir-section">
+      <div className="dir-sec-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>자막 ({list.length})</span>
+        <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={add}>+ 추가</button>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+        문구·시간을 직접 조정할 수 있어요. 비우면 제작 시 제외됩니다.
+      </div>
+      {list.map((c, i) => (
+        <div key={i} className="caption-box" style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input type="text" value={c.text || ''} placeholder="자막 문구"
+              onChange={(e) => update(i, { text: e.target.value })}
+              style={{ ...annFieldStyle, flex: 1, fontSize: 13 }} />
+            <button className="btn-reset" style={{ padding: '5px 10px' }} onClick={() => remove(i)}>✕</button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>시작</span>
+            <input type="number" step="0.5" min="0" value={c.start ?? 0}
+              onChange={(e) => update(i, { start: Math.max(0, Number(e.target.value) || 0) })}
+              style={{ ...annFieldStyle, width: 70 }} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>끝</span>
+            <input type="number" step="0.5" min="0" value={c.end ?? 0}
+              onChange={(e) => update(i, { end: Math.max(0, Number(e.target.value) || 0) })}
+              style={{ ...annFieldStyle, width: 70 }} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>초 (전체 {Number(totalDuration || 0).toFixed(1)}s)</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // onAnnotationsChange가 주어지면 손글씨 주석 부분이 편집 가능해진다(검토 화면).
-function PlanDetails({ plan, bgm, onAnnotationsChange }) {
+function PlanDetails({ plan, bgm, onAnnotationsChange, onCaptionsChange }) {
   const anns = Array.isArray(plan.annotations) ? plan.annotations : []
   return (
     <>
@@ -395,17 +440,25 @@ function PlanDetails({ plan, bgm, onAnnotationsChange }) {
           })}
         </div>
       </div>
-      <div className="dir-section">
-        <div className="dir-sec-label">자막 ({plan.captions.length})</div>
-        {plan.captions.map((c, i) => (
-          <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-              {c.start.toFixed(1)}s ~ {c.end.toFixed(1)}s
+      {onCaptionsChange ? (
+        <CaptionEditor
+          captions={plan.captions}
+          totalDuration={plan.totalDuration}
+          onChange={onCaptionsChange}
+        />
+      ) : (
+        <div className="dir-section">
+          <div className="dir-sec-label">자막 ({plan.captions.length})</div>
+          {plan.captions.map((c, i) => (
+            <div className="caption-box" style={{ marginBottom: 8 }} key={i}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                {Number(c.start).toFixed(1)}s ~ {Number(c.end).toFixed(1)}s
+              </div>
+              <div className="caption-line">&quot;{c.text}&quot;</div>
             </div>
-            <div className="caption-line">&quot;{c.text}&quot;</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       {onAnnotationsChange ? (
         <AnnotationEditor
           annotations={anns}
@@ -728,9 +781,12 @@ export default function Page() {
   }
 
   // 2단계: 검토한 plan을 그대로 렌더로 넘긴다. ("이대로 제작" 클릭 시)
-  // 검토 화면에서 사용자가 손글씨 주석을 편집하면 plan을 갱신한다.
+  // 검토 화면에서 사용자가 손글씨 주석/자막을 편집하면 plan을 갱신한다.
   function setAnnotations(next) {
     setPlan((p) => (p ? { ...p, annotations: next } : p))
+  }
+  function setCaptions(next) {
+    setPlan((p) => (p ? { ...p, captions: next } : p))
   }
 
   async function runRender() {
@@ -751,12 +807,14 @@ export default function Page() {
       const cleanAnns = (plan.annotations || [])
         .filter((a) => String(a.text || '').trim())
         .map(({ _preset, ...a }) => a)
+      const cleanCaps = (plan.captions || [])
+        .filter((c) => String(c.text || '').trim() && Number(c.end) > Number(c.start))
       const renderRes = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           shots: renderShots,
-          captions: plan.captions,
+          captions: cleanCaps,
           annotations: cleanAnns,
           bgmUrl: bgm?.url || null,
           bgmKey: bgm?.url ? null : plan.bgmKey,
@@ -1185,7 +1243,7 @@ export default function Page() {
               <>
                 <div className="directive show">
                   <div className="directive-body">
-                    <PlanDetails plan={plan} bgm={bgm} onAnnotationsChange={setAnnotations} />
+                    <PlanDetails plan={plan} bgm={bgm} onAnnotationsChange={setAnnotations} onCaptionsChange={setCaptions} />
                   </div>
                 </div>
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>

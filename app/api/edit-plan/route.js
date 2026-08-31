@@ -113,6 +113,7 @@ function sanitizeShots(shots, clips) {
 const LENGTH_PRESETS = {
   short: { lo: 15, hi: 20, cap: 21, shotLen: '2~3.5초', shotCount: '5~8개', captionCount: '4~6개', extra: '군더더기 없이 가장 강한 장면만 남기세요. 도입 훅 → 핵심 1~2개 → 마지막 한 방, 이 구조로 압축하세요.' },
   standard: { lo: 20, hi: 30, cap: 32, shotLen: '1.5~4초', shotCount: '8~12개', captionCount: '5~8개', extra: '' },
+  story: { lo: 30, hi: 45, cap: 46, shotLen: '2.5~5초', shotCount: '8~14개', captionCount: '8~14개', extra: '스토리텔링 릴스입니다. 업로드된 클립을 순서대로 이어 감정선(도입→전개→클라이맥스→마무리)을 살리세요. 각 장면의 대사를 자막으로 나눠 담으세요.' },
 }
 
 export async function POST(request) {
