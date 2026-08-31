@@ -1,0 +1,32 @@
+{
+  "totalDuration": 38.0,
+  "colorGrade": "warm",
+  "bgmKey": "calm-piano",
+  "bgmVolume": 0.15,
+  "shots": [
+    { "url": "https://mxhkl9t8tyatr1rr.public.blob.vercel-storage.com/r01-src/C01-1788167899083-o48ATyxZtDfkznZXbl4QhPcP5EfpiR.jpg", "duration": 5.0, "effect": "zoom-in" },
+    { "url": "https://mxhkl9t8tyatr1rr.public.blob.vercel-storage.com/r01-src/C02-1788167899896-cMhD0PYD1sk3fvI8UGZRdUmsJT98xu.jpg", "duration": 8.0, "effect": "zoom-out" },
+    { "url": "https://mxhkl9t8tyatr1rr.public.blob.vercel-storage.com/r01-src/C03-1788167900545-3xCfyAKr7FJmM5pKQ5E0w3l0MGaSfz.jpg", "duration": 7.0, "effect": "zoom-in" },
+    { "url": "https://mxhkl9t8tyatr1rr.public.blob.vercel-storage.com/r01-src/C04-3-1788167901380-JxlcSwNOR038TSBoEf6fKFOLarJfLb.jpg", "duration": 10.0, "effect": "zoom-in" },
+    { "url": "https://mxhkl9t8tyatr1rr.public.blob.vercel-storage.com/r01-src/C05-1788167902020-VTIKxKWvMGem7gnMQXaxXuLdT9Rl9m.jpg", "duration": 8.0, "effect": "zoom-out" }
+  ],
+  "captions": [
+    { "text": "저 사실… 원장 될 생각이 없었어요", "start": 0.6, "end": 4.7 },
+    { "text": "사업, 세 번 말아먹었거든요", "start": 5.5, "end": 8.4 },
+    { "text": "그냥 직원이 편했어요", "start": 8.7, "end": 10.9 },
+    { "text": "책임, 안 져도 되니까", "start": 11.1, "end": 12.8 },
+    { "text": "아빠가 많이 아프시다는", "start": 13.6, "end": 16.7 },
+    { "text": "연락을 받았어요", "start": 16.9, "end": 19.6 },
+    { "text": "더 많이 벌어야 했어요", "start": 20.6, "end": 23.4 },
+    { "text": "무서워도, 해야 했어요", "start": 23.7, "end": 26.5 },
+    { "text": "그래서 차렸어요. 제 샵", "start": 26.8, "end": 29.6 },
+    { "text": "무서워서 못 한 게 아니라", "start": 30.6, "end": 33.3 },
+    { "text": "무서워도, 했어요", "start": 33.6, "end": 35.4 },
+    { "text": "아직도 떨리지만, 괜찮아요", "start": 35.7, "end": 37.8 }
+  ],
+  "annotations": [
+    { "text": "10년째, 직원이었어요", "position": "top_center", "y": 0.11, "bubble": "none", "backing": true, "color": "white", "deco": [], "fontSize": 54, "start": 1.4, "end": 4.8 },
+    { "text": "무서웠지만\n문을, 열었어요", "x": 0.31, "y": 0.2, "bubble": "none", "backing": true, "color": "white", "deco": [], "fontSize": 48, "start": 24.6, "end": 29.4 },
+    { "text": "이제, 제 샵이에요", "position": "top_center", "y": 0.1, "bubble": "none", "backing": true, "color": "white", "deco": ["♡"], "fontSize": 54, "start": 34.0, "end": 37.8 }
+  ]
+}
