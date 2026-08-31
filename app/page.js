@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { upload } from '@vercel/blob/client'
-import { drawAnnotationPreview } from '../lib/handwriting-preview'
+import { drawAnnotationPreview, paintAnnotationInto, paintCaptionInto } from '../lib/handwriting-preview'
 
 const SOURCE_TAGS = [
   '시술 전 사진/영상', '시술 중 클로즈업', '시술 후 결과', '고객 반응',
@@ -407,6 +407,144 @@ function CaptionEditor({ captions, totalDuration, onChange }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// 제작 전 검토뷰 — 컷 프레임 위에 자막·손글씨를 얹어 타임라인을 스크럽하며 확인.
+// (실제 렌더의 색보정/슬로우모션/전환은 미반영 — 배치 확인용)
+function ReviewPreview({ plan }) {
+  const canvasRef = useRef(null)
+  const imgsRef = useRef({})
+  const [ready, setReady] = useState(0)
+  const [time, setTime] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  const total = Math.max(0.1, Number(plan.totalDuration) || 1)
+  const clips = plan._clips || []
+
+  useEffect(() => {
+    let live = true
+    const map = {}
+    clips.forEach((c) => {
+      if (!c || !c.isImage) return
+      const src = c.previewUrl || c.url
+      if (!src) return
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => { if (live) setReady((n) => n + 1) }
+      img.src = src
+      map[c.id] = img
+    })
+    imgsRef.current = map
+    return () => { live = false }
+  }, [plan._clips]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!playing) return
+    let raf
+    let last = performance.now()
+    const tick = (now) => {
+      const dt = (now - last) / 1000
+      last = now
+      setTime((t) => {
+        const nt = t + dt
+        if (nt >= total) { setPlaying(false); return total }
+        return nt
+      })
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [playing, total])
+
+  const activeShotIndex = () => {
+    let acc = 0
+    for (let i = 0; i < plan.shots.length; i++) {
+      if (time < acc + plan.shots[i].duration + 0.0001) return i
+      acc += plan.shots[i].duration
+    }
+    return plan.shots.length - 1
+  }
+
+  useEffect(() => {
+    const cv = canvasRef.current
+    if (!cv) return
+    const ctx = cv.getContext('2d')
+    const cw = cv.width, chh = cv.height
+    ctx.clearRect(0, 0, cw, chh)
+    ctx.fillStyle = '#111'
+    ctx.fillRect(0, 0, cw, chh)
+
+    const shot = plan.shots[activeShotIndex()]
+    const clip = clips[shot ? shot.clipIndex : 0]
+    if (clip && clip.isImage) {
+      const img = imgsRef.current[clip.id]
+      if (img && img.complete && img.naturalWidth) {
+        const ir = img.naturalWidth / img.naturalHeight, cr = cw / chh
+        let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0
+        if (ir > cr) { sw = sh * cr; sx = (img.naturalWidth - sw) / 2 }
+        else { sh = sw / cr; sy = (img.naturalHeight - sh) / 2 }
+        try { ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, chh) } catch {}
+      }
+    } else {
+      ctx.fillStyle = '#2a2a2a'
+      ctx.fillRect(0, 0, cw, chh)
+      ctx.fillStyle = '#999'
+      ctx.font = '15px system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText('🎬 영상 컷 (미리보기 생략)', cw / 2, chh / 2)
+    }
+
+    for (const c of plan.captions || []) {
+      if (String(c.text || '').trim() && time >= Number(c.start) && time <= Number(c.end)) {
+        paintCaptionInto(ctx, c.text, cw, chh)
+      }
+    }
+    for (const a of plan.annotations || []) {
+      if (String(a.text || '').trim() && time >= (Number(a.start) || 0) && time <= (Number(a.end) || 0)) {
+        paintAnnotationInto(ctx, a, cw, chh)
+      }
+    }
+  }, [time, ready, plan]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const si = activeShotIndex()
+  return (
+    <div className="dir-section">
+      <div className="dir-sec-label">미리보기 — 제작 전 확인</div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <canvas
+          ref={canvasRef}
+          width={270}
+          height={480}
+          style={{ width: 270, height: 480, borderRadius: 10, background: '#000', border: '1px solid var(--border)', flexShrink: 0 }}
+        />
+        <div style={{ flex: 1, minWidth: 210, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--text)' }}>
+            컷 {si + 1}/{plan.shots.length} · {time.toFixed(1)}s / {total.toFixed(1)}s
+            {clips[plan.shots[si]?.clipIndex] && (
+              <span style={{ color: 'var(--text-muted)' }}>
+                {' '}· {clips[plan.shots[si].clipIndex].source === 'stock' ? 'Pexels' : (clips[plan.shots[si].clipIndex].label || '소스')}
+              </span>
+            )}
+          </div>
+          <input
+            type="range" min={0} max={total} step={0.1} value={time}
+            onChange={(e) => { setPlaying(false); setTime(Number(e.target.value)) }}
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-secondary" style={{ padding: '5px 14px' }}
+              onClick={() => { if (time >= total) setTime(0); setPlaying((p) => !p) }}>
+              {playing ? '⏸ 정지' : '▶ 재생'}
+            </button>
+            <button className="btn-reset" style={{ padding: '5px 12px' }}
+              onClick={() => { setPlaying(false); setTime(0) }}>처음</button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            컷·자막·손글씨 배치를 미리 확인하세요. 실제 렌더에는 색보정·슬로우모션·컷 전환이 더해집니다.
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1243,6 +1381,7 @@ export default function Page() {
               <>
                 <div className="directive show">
                   <div className="directive-body">
+                    <ReviewPreview plan={plan} />
                     <PlanDetails plan={plan} bgm={bgm} onAnnotationsChange={setAnnotations} onCaptionsChange={setCaptions} />
                   </div>
                 </div>
