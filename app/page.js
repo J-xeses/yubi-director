@@ -691,27 +691,61 @@ function ReviewPreview({ plan }) {
 }
 
 // onAnnotationsChange가 주어지면 손글씨 주석 부분이 편집 가능해진다(검토 화면).
-function PlanDetails({ plan, bgm, onAnnotationsChange, onCaptionsChange }) {
+function clipOptionLabel(clip, i) {
+  const name = clip.source === 'stock'
+    ? `Pexels · ${clip.photographer || '스톡'}`
+    : (clip.label || (clip.file && clip.file.name) || '소스')
+  const dur = clip.duration ? ` · ${clip.duration.toFixed(1)}초` : ''
+  return `${i + 1}. ${name}${dur}`
+}
+
+function PlanDetails({ plan, bgm, onAnnotationsChange, onCaptionsChange, onShotsChange }) {
   const anns = Array.isArray(plan.annotations) ? plan.annotations : []
+  const allClips = plan._clips || []
+  const swapClip = (shotIdx, clipIdx) => {
+    if (!onShotsChange) return
+    onShotsChange(plan.shots.map((s, i) => (i === shotIdx ? { ...s, clipIndex: clipIdx } : s)))
+  }
   return (
     <>
       <div className="dir-section" style={{ marginTop: 16 }}>
         <div className="dir-sec-label">
           샷 구성 ({plan.shots.length}컷 · 총 {Number(plan.totalDuration || 0).toFixed(1)}초)
         </div>
+        {onShotsChange && allClips.length > 1 && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+            각 컷에 쓸 클립을 드롭다운으로 바꿀 수 있어요. 바꾸면 미리보기와 제작에 바로 반영됩니다.
+          </div>
+        )}
         <div className="dir-steps">
           {plan.shots.map((s, i) => {
-            const clip = (plan._clips || [])[s.clipIndex]
+            const clip = allClips[s.clipIndex]
             return (
-              <div className="dir-step" key={i} style={{ alignItems: 'center' }}>
+              <div className="dir-step" key={i} style={{ alignItems: 'flex-start' }}>
                 <div className="dir-step-no">{i + 1}</div>
                 {clip && <ShotThumb clip={clip} trimStart={s.trimStart} />}
-                <div className="dir-step-text">
+                <div className="dir-step-text" style={{ flex: 1, minWidth: 0 }}>
                   {s.duration.toFixed(1)}초 · {EFFECT_LABELS[s.effect] || s.effect}
-                  {clip && (
+                  {clip && !onShotsChange && (
                     <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                       {' '}· {clip.source === 'stock' ? 'Pexels' : (clip.label || '소스')}
                     </span>
+                  )}
+                  {onShotsChange && allClips.length > 0 && (
+                    <select
+                      value={s.clipIndex}
+                      onChange={(e) => swapClip(i, Number(e.target.value))}
+                      style={{
+                        display: 'block', marginTop: 6, maxWidth: '100%',
+                        background: 'var(--surface2)', color: 'var(--text)',
+                        border: '1px solid var(--border)', borderRadius: 8,
+                        fontSize: 12, padding: '4px 8px',
+                      }}
+                    >
+                      {allClips.map((c, ci) => (
+                        <option key={c.id ?? ci} value={ci}>{clipOptionLabel(c, ci)}</option>
+                      ))}
+                    </select>
                   )}
                 </div>
               </div>
@@ -1091,6 +1125,9 @@ export default function Page() {
   }
   function setCaptions(next) {
     setPlan((p) => (p ? { ...p, captions: next } : p))
+  }
+  function setShots(next) {
+    setPlan((p) => (p ? { ...p, shots: next } : p))
   }
 
   async function runRender() {
@@ -1667,7 +1704,7 @@ export default function Page() {
                 <div className="directive show">
                   <div className="directive-body">
                     <ReviewPreview plan={plan} />
-                    <PlanDetails plan={plan} bgm={bgm} onAnnotationsChange={setAnnotations} onCaptionsChange={setCaptions} />
+                    <PlanDetails plan={plan} bgm={bgm} onAnnotationsChange={setAnnotations} onCaptionsChange={setCaptions} onShotsChange={setShots} />
                   </div>
                 </div>
                 <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
