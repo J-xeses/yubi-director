@@ -1,15 +1,18 @@
 import { callClaude } from '../../../lib/anthropic'
 
 export async function POST(request) {
-  const { proposal, sourceText, sourceTags, treatment } = await request.json()
+  const { proposal, sourceText, sourceTags, category, treatment, detail } = await request.json()
+  const cat = category || (treatment ? '시술' : '기타')
+  const catDetail = detail || (cat === '시술' ? treatment : '') || ''
 
-  const prompt = `당신은 뷰티 크리에이터 유비의 인스타 릴스 편집 디렉터입니다.
+  const prompt = `당신은 크리에이터 유비의 인스타 릴스 편집 디렉터입니다.
 유비는 CapCut 초보이며 혼자 편집합니다. 따라하기만 하면 되는 수준으로 작성하세요.
+채널 톤: 모노톤·어반, 담백·솔직, 가끔 셀프디스.
 
 선택한 연출: "${proposal.title}"
 훅 문구: "${proposal.hook}"
 소스: ${sourceTags || sourceText}
-시술: ${treatment}
+카테고리: ${cat}${catDetail ? ` (${catDetail})` : ''}
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {

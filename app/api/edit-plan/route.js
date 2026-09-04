@@ -1,4 +1,28 @@
 import { callClaude } from '../../../lib/anthropic'
+import { categoryBlock } from '../../../lib/categories'
+import { SFX_KEYS, SFX_GUIDE_TEXT } from '../../../lib/sfx'
+
+const SFX_KEY_SET = new Set(SFX_KEYS)
+
+// 효과음 배치 — AI가 고른 순간에 번들 효과음을 얹는다. 가이드: 모든 전환마다 넣지 말고
+// 분기점만. 같은 효과음 3회+ 금지. 시각은 타임라인 클램프.
+function sanitizeSfx(sfx, totalDuration) {
+  if (!Array.isArray(sfx)) return []
+  const used = {}
+  const out = []
+  for (const s of sfx) {
+    const key = String(s?.key || s?.kind || '').trim()
+    if (!SFX_KEY_SET.has(key)) continue
+    if ((used[key] || 0) >= 2) continue
+    let at = Number(s.at)
+    if (!isFinite(at) || at < 0) continue
+    if (totalDuration && at > totalDuration - 0.2) at = Math.max(0, totalDuration - 0.2)
+    used[key] = (used[key] || 0) + 1
+    out.push({ key, at: Number(at.toFixed(2)), gain: Number(s.gain) > 0 ? Math.min(1, Number(s.gain)) : undefined })
+    if (out.length >= 8) break
+  }
+  return out.sort((a, b) => a.at - b.at)
+}
 
 // AI가 "자막끼리 겹치지 않게"라는 프롬프트 지시를 지키지 않고 겹치는 시간대를
 // 반환하는 경우가 실제로 관측됨(2026-08-28) — 프롬프트만 믿지 않고 서버에서
@@ -118,8 +142,10 @@ const LENGTH_PRESETS = {
 }
 
 export async function POST(request) {
-  const { proposal, sourceText, treatment, clips, targetLength } = await request.json()
+  const { proposal, sourceText, category, treatment, detail, clips, targetLength } = await request.json()
   const LEN = LENGTH_PRESETS[targetLength] || LENGTH_PRESETS.standard
+  const cat = category || (treatment ? '시술' : '기타')
+  const catDetail = detail || (cat === '시술' ? treatment : '') || ''
 
   const clipList = clips
     .map((c, i) => `${i}: ${c.label || '(라벨 없음)'} (원본 길이 ${c.duration ? c.duration.toFixed(1) + '초' : '알 수 없음'})`)
@@ -129,8 +155,10 @@ export async function POST(request) {
 실제 편집자처럼 하나의 클립 안에서도 여러 장면(샷)을 뽑아내고 카메라 무빙 효과를 넣어 리듬감 있게 구성하세요.
 
 선택한 연출: "${proposal.title}" — "${proposal.hook}"
-시술: ${treatment || '미지정'}
 유비 설명: ${sourceText || '(없음)'}
+${catDetail ? `세부: ${catDetail}` : ''}
+
+${categoryBlock(cat)}
 
 업로드된 클립 목록 (index: 라벨 (원본 길이)):
 ${clipList}
@@ -176,12 +204,19 @@ ${clipList}
   - backing: 기본 true. 어두운 장면이면 false
   - underline: true면 물결 밑줄 + 위쪽 틱마크 (도입 타이틀용, bubble "none"일 때만)
   - fontSize: 타이틀 56~68, 일반 40~50, 작은 라벨 30~38
+- "sfx"는 특정 순간에 얹을 효과음입니다. <b>모든 전환마다 넣지 말고</b> 분기점·강조 포인트에만 3~5개.
+  같은 효과음을 3번 이상 쓰지 마세요(비슷한 다른 걸로 변주). 위 "효과음 성향"을 참고하세요.
+  고를 수 있는 효과음:
+${SFX_GUIDE_TEXT}
+  각 항목: { "key": "위 이름 중 하나", "at": 전체 타임라인 기준 시각(초) }
+  기본 추천 포인트: 도입 훅 / 큰 전환 / 결과·반전 공개 / 마무리.
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
   "shots": [ { "clipIndex": 0, "trimStart": 0, "duration": 3.0, "effect": "zoom-in" } ],
   "captions": [ { "start": 0, "end": 2.5, "text": "자막 문구" } ],
   "annotations": [ { "text": "이거 실화?", "start": 1.0, "end": 4.0, "position": "top_center", "bubble": "cloud", "color": "white", "deco": ["✦"], "arrow": false } ],
+  "sfx": [ { "key": "transition", "at": 0.2 }, { "key": "shutter", "at": 6.5 } ],
   "totalDuration": 15.0,
   "bgmKey": "calm-piano",
   "colorGrade": "warm"
@@ -208,10 +243,14 @@ ${clipList}
       if (Array.isArray(parsed.annotations)) {
         parsed.annotations = parsed.annotations.map((a) => ({ ...a, start: sc(a.start), end: sc(a.end) }))
       }
+      if (Array.isArray(parsed.sfx)) {
+        parsed.sfx = parsed.sfx.map((x) => ({ ...x, at: sc(x.at) }))
+      }
     }
 
     parsed.captions = sanitizeCaptions(parsed.captions, parsed.totalDuration)
     parsed.annotations = sanitizeAnnotations(parsed.annotations, parsed.totalDuration)
+    parsed.sfx = sanitizeSfx(parsed.sfx, parsed.totalDuration)
     if (!VALID_GRADES.has(parsed.colorGrade)) parsed.colorGrade = 'neutral'
     return Response.json(parsed)
   } catch (e) {

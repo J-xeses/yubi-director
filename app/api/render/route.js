@@ -5,10 +5,13 @@ import { spawn } from 'child_process'
 import { put } from '@vercel/blob'
 import { FFMPEG, FFPROBE, run } from '../../../lib/media'
 import { renderAnnotationPNG, measureCaptionWidth } from '../../../lib/handwriting'
+import { SFX_LIBRARY, sfxPath } from '../../../lib/sfx'
 
 export const maxDuration = 120
 
 const FONT_PATH = path.join(process.cwd(), 'assets', 'fonts', 'NotoSansKR-Bold.ttf')
+// 자막 = 손글씨체(Gaegu). 레퍼런스 릴스 스타일 — 판 대신 외곽선.
+const CAPTION_FONT_PATH = path.join(process.cwd(), 'assets', 'fonts', 'Gaegu-Bold.ttf')
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic', '.heif'])
 const FPS = 30
 const BASE_W = 1080
@@ -69,12 +72,18 @@ function probeHasAudio(filePath) {
 export async function POST(request) {
   const {
     shots, captions = [], bgmUrl, bgmKey, totalDuration, colorGrade,
-    annotations = [], bgmVolume,
+    annotations = [], sfx = [], bgmVolume,
   } = await request.json()
 
   // 손글씨 주석: { text, start, end, position, bubble, color, deco, arrow, arrowDir }
   const anns = (Array.isArray(annotations) ? annotations : [])
     .filter((a) => a && String(a.text || '').trim())
+    .slice(0, 8)
+
+  // 효과음: { key, at, gain } — 번들 라이브러리에 있는 것만, 파일 존재 확인
+  const sfxList = (Array.isArray(sfx) ? sfx : [])
+    .map((s) => ({ key: String(s?.key || ''), at: Math.max(0, Number(s?.at) || 0), gain: Number(s?.gain) || 0 }))
+    .filter((s) => SFX_LIBRARY[s.key] && sfxPath(s.key))
     .slice(0, 8)
   const bgmVol = Math.max(0, Math.min(1, Number(bgmVolume) > 0 ? Number(bgmVolume) : 0.18))
 
@@ -212,44 +221,72 @@ export async function POST(request) {
       for (let idx = 0; idx < captions.length; idx++) {
         const cap = captions[idx]
         const capFile = path.join(workDir, `cap${idx}.txt`)
-        const singleLineText = String(cap.text || '').replace(/\s*\r?\n\s*/g, ' ').trim()
+        let singleLineText = String(cap.text || '').replace(/\s*\r?\n\s*/g, ' ').trim()
+        // 레퍼런스 릴스 스타일 — 따옴표로 감싸기 (이미 감싸져 있으면 그대로)
+        if (singleLineText && !/^["'"'].*["'"']$/.test(singleLineText)) singleLineText = `"${singleLineText}"`
         await fs.writeFile(capFile, singleLineText, 'utf-8')
         const isLast = idx === captions.length - 1
-        const safeFontPath = FONT_PATH.replace(/\\/g, '/').replace(/:/g, '\\:')
+        const safeFontPath = CAPTION_FONT_PATH.replace(/\\/g, '/').replace(/:/g, '\\:')
         const safeCapPath = capFile.replace(/\\/g, '/').replace(/:/g, '\\:')
         // 줄바꿈을 막았으니 문장이 길면 한 줄로 화면 폭(1080px, 여백 감안 900px)을
         // 넘어갈 수 있다 — canvas로 실제 폭을 재서 fontsize를 줄여 한 줄 안에 들어오게 한다
         // (기존엔 글자 수 * 상수로 추정했는데 영문/숫자/공백이 섞이면 오차가 컸음).
-        const CAPTION_SAFE_WIDTH = 900
-        const BASE_FS = 58
+        const CAPTION_SAFE_WIDTH = 940
+        const BASE_FS = 64
         let realWidth = BASE_FS
         try { realWidth = measureCaptionWidth(singleLineText, BASE_FS) } catch { realWidth = singleLineText.length * BASE_FS * 0.95 }
         const fontsize = realWidth > CAPTION_SAFE_WIDTH
-          ? Math.max(32, Math.floor(BASE_FS * CAPTION_SAFE_WIDTH / realWidth))
+          ? Math.max(34, Math.floor(BASE_FS * CAPTION_SAFE_WIDTH / realWidth))
           : BASE_FS
-        chain += `drawtext=fontfile='${safeFontPath}':textfile='${safeCapPath}':enable='between(t\\,${cap.start}\\,${cap.end})':x=(w-text_w)/2:y=h-320:fontsize=${fontsize}:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=24`
+        // 판(box) 대신 흰 글자 + 검정 외곽선 + 살짝 그림자 — 레퍼런스 손글씨 자막
+        chain += `drawtext=fontfile='${safeFontPath}':textfile='${safeCapPath}':enable='between(t\\,${cap.start}\\,${cap.end})':x=(w-text_w)/2:y=h-360:fontsize=${fontsize}:fontcolor=white:borderw=7:bordercolor=black@0.92:shadowcolor=black@0.35:shadowx=0:shadowy=3`
         chain += isLast ? `[vout]` : `,`
       }
       filterParts.push(chain)
       videoLabel = 'vout'
     }
 
-    // 6) BGM 믹싱
+    // 6) BGM + 효과음 믹싱
+    // ⚠ 번들 ffmpeg(2018, N-92722)는 amix 의 normalize 옵션이 없어 입력 수 N 으로 항상
+    //    나눠버린다 → 입력별 volume 을 미리 N배 해서 상쇄한다.
     let audioLabel = joinedAudio
+    const sfxInputCount = sfxList.length
+    // {srcLabel, targetVol} — targetVol = 최종 원하는 상대 볼륨
+    const mixSources = [{ label: `[${joinedAudio}]`, vol: 1.0 }]
+    let nextInputIdx = shots.length
+
     if (bgmPath) {
-      const bgmIndex = shots.length
+      const bgmIndex = nextInputIdx++
       inputArgs.push('-stream_loop', '-1', '-i', bgmPath)
-      filterParts.push(
-        `[${bgmIndex}:a]atrim=0:${totalDuration},asetpts=PTS-STARTPTS,volume=${bgmVol}[bgmtrim]`,
-        `[${joinedAudio}][bgmtrim]amix=inputs=2:duration=first:dropout_transition=0[amixed]`
-      )
+      filterParts.push(`[${bgmIndex}:a]atrim=0:${totalDuration},asetpts=PTS-STARTPTS[bgmraw]`)
+      mixSources.push({ label: '[bgmraw]', vol: bgmVol })
+    }
+
+    sfxList.forEach((s, i) => {
+      const p = sfxPath(s.key)
+      const idx = nextInputIdx++
+      inputArgs.push('-i', p)
+      const ms = Math.round(s.at * 1000)
+      const gain = s.gain > 0 ? s.gain : (SFX_LIBRARY[s.key]?.gain || 0.5)
+      filterParts.push(`[${idx}:a]aformat=sample_rates=44100:channel_layouts=stereo,adelay=${ms}|${ms}[sfxraw${i}]`)
+      mixSources.push({ label: `[sfxraw${i}]`, vol: gain })
+    })
+
+    if (mixSources.length > 1) {
+      const n = mixSources.length
+      const scaled = mixSources.map((m, i) => {
+        const out = `[m${i}]`
+        filterParts.push(`${m.label}volume=${(m.vol * n).toFixed(3)}${out}`)
+        return out
+      })
+      filterParts.push(`${scaled.join('')}amix=inputs=${n}:duration=first:dropout_transition=0[amixed]`)
       audioLabel = 'amixed'
     }
 
     // 6-b) 손글씨 주석 오버레이 — 각 씬을 투명 PNG로 그려(@napi-rs/canvas) 입력으로 넣고
-    //      해당 시간대에만 overlay한다. BGM 다음 인덱스부터.
+    //      해당 시간대에만 overlay한다. BGM·효과음 다음 인덱스부터.
     if (anns.length > 0) {
-      let annBase = shots.length + (bgmPath ? 1 : 0)
+      let annBase = shots.length + (bgmPath ? 1 : 0) + sfxInputCount
       let prev = videoLabel
       for (let k = 0; k < anns.length; k++) {
         const a = anns[k]

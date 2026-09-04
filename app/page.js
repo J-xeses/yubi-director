@@ -5,12 +5,19 @@ import { upload } from '@vercel/blob/client'
 import { drawAnnotationPreview, paintAnnotationInto, paintCaptionInto } from '../lib/handwriting-preview'
 
 const SOURCE_TAGS = [
-  '시술 전 사진/영상', '시술 중 클로즈업', '시술 후 결과', '고객 반응',
-  '거울 확인 장면', '손/도구 클로즈업', 'Before/After 사진', '유비 설명 셀카',
-  '스톡 B-roll(검색)',
+  '클로즈업', '결과/전후 사진', '고객 반응', '거울 확인 장면',
+  '손/도구 클로즈업', '유비 설명 셀카', '이동/걷기', '공간/풍경',
+  '음식 클로즈업', '스톡 B-roll(검색)',
 ]
-const TREATMENT_TAGS = ['이마라인 교정', '눈썹 반영구', '복합 시술', '상담/설명', '기타']
-const MOOD_TAGS = ['감동적/진솔한', '전문적/신뢰감', '밝고 활기찬', '교육적/정보형', '친근한/일상적']
+// 콘텐츠 카테고리 — lib/categories.js 의 키와 일치시킬 것
+const CATEGORY_TAGS = ['시술', '일상 브이로그', '출퇴근', '먹방', '공간·오픈', '손님 후기', 'Q&A·정보', '기타']
+const CATEGORY_DETAIL_PLACEHOLDER = {
+  '시술': '예: 눈썹 반영구 / 이마라인 교정 / 복합',
+  '먹방': '예: 혼밥 파스타 / 편의점 털이',
+  '공간·오픈': '예: 간판 시공 D-7 / 가구 배치',
+  '출퇴근': '예: 트롤리 투어 / 지하철 출근',
+}
+const MOOD_TAGS = ['담백/솔직', '감동적/진솔한', '전문적/신뢰감', '밝고 활기찬', '교육적/정보형', '셀프디스 유머']
 const LENGTH_TAGS = [
   { key: 'short', label: '짧게 · 임팩트 (15~20초)' },
   { key: 'standard', label: '표준 (20~30초)' },
@@ -637,6 +644,19 @@ function PlanDetails({ plan, bgm, onAnnotationsChange, onCaptionsChange }) {
           </div>
         </div>
       </div>
+      {Array.isArray(plan.sfx) && plan.sfx.length > 0 && (
+        <div className="dir-section">
+          <div className="dir-sec-label">효과음 ({plan.sfx.length}개)</div>
+          {plan.sfx.map((s, i) => (
+            <div className="dir-step" key={i}>
+              <div className="dir-step-no">🔊</div>
+              <div className="dir-step-text">
+                {Number(s.at).toFixed(1)}s — {s.key}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -684,7 +704,8 @@ export default function Page() {
   const [step, setStep] = useState(1)
   const [sourceText, setSourceText] = useState('')
   const [sourceTags, setSourceTags] = useState([])
-  const [treatment, setTreatment] = useState('')
+  const [category, setCategory] = useState('시술')
+  const [detail, setDetail] = useState('')
   const [mood, setMood] = useState('')
   const [targetLength, setTargetLength] = useState('standard')
 
@@ -845,7 +866,8 @@ export default function Page() {
         body: JSON.stringify({
           sourceText: sourceText.trim(),
           sourceTags: sourceTags.join(', '),
-          treatment,
+          category,
+          detail: detail.trim(),
           mood,
           targetLength,
         }),
@@ -875,7 +897,8 @@ export default function Page() {
           proposal,
           sourceText: sourceText.trim(),
           sourceTags: sourceTags.join(', '),
-          treatment,
+          category,
+          detail: detail.trim(),
         }),
       })
       const data = await res.json()
@@ -909,7 +932,8 @@ export default function Page() {
         body: JSON.stringify({
           proposal,
           sourceText: sourceText.trim(),
-          treatment,
+          category,
+          detail: detail.trim(),
           targetLength,
           clips: readyClips.map((c) => ({ label: c.label, duration: c.duration })),
         }),
@@ -962,6 +986,7 @@ export default function Page() {
           shots: renderShots,
           captions: cleanCaps,
           annotations: cleanAnns,
+          sfx: Array.isArray(plan.sfx) ? plan.sfx : [],
           bgmUrl: bgm?.url || null,
           bgmKey: bgm?.url ? null : plan.bgmKey,
           totalDuration: plan.totalDuration,
@@ -1004,7 +1029,8 @@ export default function Page() {
     setStep(1)
     setSourceText('')
     setSourceTags([])
-    setTreatment('')
+    setCategory('시술')
+    setDetail('')
     setMood('')
     setTargetLength('standard')
     setClips([])
@@ -1191,18 +1217,29 @@ export default function Page() {
             </div>
 
             <div className="tag-group">
-              <div className="tag-label">시술 종류</div>
+              <div className="tag-label">콘텐츠 카테고리</div>
               <div className="tags">
-                {TREATMENT_TAGS.map((tag) => (
+                {CATEGORY_TAGS.map((tag) => (
                   <button
                     key={tag}
-                    className={`tag${treatment === tag ? ' on' : ''}`}
-                    onClick={() => setTreatment(tag)}
+                    className={`tag${category === tag ? ' on' : ''}`}
+                    onClick={() => setCategory(tag)}
                   >
                     {tag}
                   </button>
                 ))}
               </div>
+              <input
+                type="text"
+                value={detail}
+                onChange={(e) => setDetail(e.target.value)}
+                placeholder={CATEGORY_DETAIL_PLACEHOLDER[category] || '세부 내용 (선택)'}
+                style={{
+                  marginTop: 10, width: '100%', padding: '10px 12px', fontSize: 14,
+                  borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)',
+                  color: 'var(--text)',
+                }}
+              />
             </div>
 
             <div className="tag-group">
