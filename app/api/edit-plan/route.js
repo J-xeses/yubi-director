@@ -55,6 +55,7 @@ function sanitizeCaptions(captions, totalDuration) {
 
 const VALID_EFFECTS = new Set(['static', 'zoom-in', 'zoom-out', 'slow-mo'])
 const VALID_GRADES = new Set(['warm', 'cool', 'moody', 'vivid', 'neutral'])
+const VALID_BGM = new Set(['calm-piano', 'upbeat-reel', 'trust-corporate'])
 const VALID_ANN_POS = new Set([
   'top_center', 'top_left', 'top_right', 'center', 'bottom_center', 'bottom_left', 'bottom_right',
 ])
@@ -141,9 +142,108 @@ const LENGTH_PRESETS = {
   story: { lo: 30, hi: 45, cap: 46, shotLen: '2.5~5초', shotCount: '8~14개', captionCount: '8~14개', extra: '스토리텔링 릴스입니다. 업로드된 클립을 순서대로 이어 감정선(도입→전개→클라이맥스→마무리)을 살리세요. 각 장면의 대사를 자막으로 나눠 담으세요.' },
 }
 
+// ── 시리즈 모드 픽스 대본 주입 ───────────────────────────────────────────────
+// 시리즈 편을 고르면 그 편의 cuts(scene/caption/fx)가 그대로 편집 계획이 된다.
+// Claude를 호출하지 않고, 아래에서 shots/captions/sfx 타임라인을 계산해 반환한 뒤
+// 기존 sanitize 파이프라인(클램프·겹침 제거·길이 보정)을 똑같이 통과시킨다.
+
+// cuts[].fx 는 카메라 효과(줌인/고정/슬로우모션/줌아웃)와 효과음 키가 섞여 들어온다.
+const FX_TO_EFFECT = {
+  '줌인': 'zoom-in', '줌아웃': 'zoom-out', '고정': 'static', '슬로우모션': 'slow-mo',
+  'zoom-in': 'zoom-in', 'zoom-out': 'zoom-out', 'static': 'static', 'slow-mo': 'slow-mo',
+}
+function cutEffect(fx) {
+  return FX_TO_EFFECT[String(fx || '').trim()] || 'static'
+}
+
+// scene 설명 ↔ 업로드 클립 label 을 한글 bigram 겹침으로 매칭. 마땅한 짝이 없으면 순번.
+function normKo(s) {
+  return String(s || '').toLowerCase().replace(/[^가-힣a-z0-9]+/g, '')
+}
+function bigrams(s) {
+  const set = new Set()
+  for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2))
+  return set
+}
+function matchScore(scene, label) {
+  const a = normKo(scene)
+  const b = normKo(label)
+  if (a.length < 2 || b.length < 2) return 0
+  const ga = bigrams(a)
+  const gb = bigrams(b)
+  let hits = 0
+  for (const g of ga) if (gb.has(g)) hits++
+  return hits / ga.size
+}
+function assignClips(cuts, clips) {
+  if (!Array.isArray(clips) || clips.length <= 1) return cuts.map(() => 0)
+  return cuts.map((c, i) => {
+    let best = -1
+    let bestScore = 0.14 // 이 아래면 "매칭 실패"로 보고 순번 배치
+    clips.forEach((cl, idx) => {
+      const s = matchScore(c.scene, cl.label)
+      if (s > bestScore) { bestScore = s; best = idx }
+    })
+    return best >= 0 ? best : i % clips.length
+  })
+}
+
+function buildSeriesPlanRaw(seriesPlan, clips, LEN) {
+  const cuts = (Array.isArray(seriesPlan.cuts) ? seriesPlan.cuts : [])
+    .filter((c) => c && (String(c.scene || '').trim() || String(c.caption || '').trim()))
+  const target = (LEN.lo + LEN.hi) / 2
+  const per = Math.max(1.6, Math.min(4.0, target / Math.max(1, cuts.length)))
+  const clipIdx = assignClips(cuts, clips)
+
+  // 같은 클립이 여러 컷에 배치되면 원본 길이가 허락하는 만큼 trimStart 를 밀어
+  // 다른 구간을 보여준다. 안 되면 0(같은 구간 재사용).
+  const usedSpan = {}
+  const shots = cuts.map((c, i) => {
+    const effect = cutEffect(c.fx)
+    const dur = Number((effect === 'slow-mo' ? per * 1.15 : per).toFixed(2))
+    const idx = clipIdx[i]
+    const origDur = Number(clips[idx] && clips[idx].duration) || 0
+    let trimStart = 0
+    const prev = usedSpan[idx] || 0
+    if (origDur && prev + dur + 0.3 <= origDur) trimStart = Number(prev.toFixed(2))
+    usedSpan[idx] = trimStart + dur
+    return { clipIndex: idx, trimStart, duration: dur, effect }
+  })
+
+  let t = 0
+  const captions = []
+  const sfx = []
+  cuts.forEach((c, i) => {
+    const dur = shots[i].duration
+    const text = String(c.caption || '').replace(/\s*\r?\n\s*/g, ' ').trim()
+    if (text) {
+      captions.push({
+        start: Number((t + 0.2).toFixed(2)),
+        end: Number((t + dur - 0.1).toFixed(2)),
+        text,
+      })
+    }
+    const fxKey = String(c.fx || '').trim()
+    if (SFX_KEY_SET.has(fxKey)) sfx.push({ key: fxKey, at: Number((t + 0.15).toFixed(2)) })
+    t += dur
+  })
+
+  return {
+    shots,
+    captions,
+    annotations: [], // 시리즈 대본에는 손글씨가 없다 — 검토 화면에서 유비가 직접 추가
+    sfx,
+    totalDuration: Number(t.toFixed(2)),
+    bgmKey: VALID_BGM.has(seriesPlan.bgm) ? seriesPlan.bgm : 'calm-piano',
+    colorGrade: VALID_GRADES.has(seriesPlan.color) ? seriesPlan.color : 'neutral',
+  }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export async function POST(request) {
-  const { proposal, sourceText, category, treatment, detail, clips, targetLength } = await request.json()
+  const { proposal, sourceText, category, treatment, detail, clips, targetLength, seriesPlan } = await request.json()
   const LEN = LENGTH_PRESETS[targetLength] || LENGTH_PRESETS.standard
+  const useSeries = !!(seriesPlan && Array.isArray(seriesPlan.cuts) && seriesPlan.cuts.length > 0)
   const cat = category || (treatment ? '시술' : '기타')
   const catDetail = detail || (cat === '시술' ? treatment : '') || ''
 
@@ -223,10 +323,17 @@ ${SFX_GUIDE_TEXT}
 }`
 
   try {
-    const parsed = await callClaude(prompt, 8000)
+    // 시리즈 편을 골랐으면 픽스된 대본을 그대로 계획으로 쓰고, 아니면 Claude가 생성.
+    const parsed = useSeries
+      ? buildSeriesPlanRaw(seriesPlan, clips, LEN)
+      : await callClaude(prompt, 8000)
     parsed.shots = sanitizeShots(parsed.shots, clips)
     if (parsed.shots.length === 0) {
-      return Response.json({ error: 'AI가 유효한 편집 계획을 만들지 못했습니다. 다시 시도해주세요.' }, { status: 500 })
+      return Response.json({
+        error: useSeries
+          ? '시리즈 대본을 편집 계획으로 변환하지 못했습니다 — 업로드한 소스를 확인해주세요.'
+          : 'AI가 유효한 편집 계획을 만들지 못했습니다. 다시 시도해주세요.',
+      }, { status: 500 })
     }
     parsed.totalDuration = Number(parsed.shots.reduce((sum, s) => sum + s.duration, 0).toFixed(2))
 
@@ -252,6 +359,8 @@ ${SFX_GUIDE_TEXT}
     parsed.annotations = sanitizeAnnotations(parsed.annotations, parsed.totalDuration)
     parsed.sfx = sanitizeSfx(parsed.sfx, parsed.totalDuration)
     if (!VALID_GRADES.has(parsed.colorGrade)) parsed.colorGrade = 'neutral'
+    parsed.planSource = useSeries ? 'series' : 'ai'
+    if (useSeries) parsed.seriesCode = seriesPlan.code || null
     return Response.json(parsed)
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })

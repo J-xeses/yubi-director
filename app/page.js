@@ -829,6 +829,10 @@ let nextClipId = 1
 export default function Page() {
   const [seriesMode, setSeriesMode] = useState(false)
   const [selectedSeries, setSelectedSeries] = useState(null)
+  // 시리즈 편을 고르면 그 편의 픽스된 대본(컷 구성·BGM·색보정)을 여기 담아두고,
+  // generatePlan()에서 /api/edit-plan 으로 함께 보낸다. 이게 있으면 엔진은 Claude로
+  // 컷을 새로 짜지 않고 이 대본을 그대로 편집 계획으로 쓴다.
+  const [seriesPlan, setSeriesPlan] = useState(null)
   const [step, setStep] = useState(1)
   const [sourceText, setSourceText] = useState('')
   const [sourceTags, setSourceTags] = useState([])
@@ -1064,6 +1068,8 @@ export default function Page() {
           detail: detail.trim(),
           targetLength,
           clips: readyClips.map((c) => ({ label: c.label, duration: c.duration })),
+          // 시리즈 편을 골랐으면 픽스된 대본을 함께 보낸다 — 엔진은 이걸 그대로 편집 계획으로 쓴다.
+          seriesPlan: seriesPlan || undefined,
         }),
       })
       const data = await planRes.json()
@@ -1172,6 +1178,8 @@ export default function Page() {
     setError('')
     setStockResults([])
     setLightbox(null)
+    setSelectedSeries(null)
+    setSeriesPlan(null)
   }
 
   const hasClips = clips.some((c) => c.status === 'done')
@@ -1191,7 +1199,7 @@ export default function Page() {
         <div className="mode-tabs">
           <button
             className={`mode-tab${!seriesMode ? ' on' : ''}`}
-            onClick={() => { setSeriesMode(false); setSelectedSeries(null); }}
+            onClick={() => { setSeriesMode(false); setSelectedSeries(null); setSeriesPlan(null); }}
           >
             자유 모드
             <span>그때그때 소스로 연출</span>
@@ -1273,6 +1281,14 @@ export default function Page() {
                     setMood(s.mood)
                     setTargetLength(s.length.includes('스토리') ? 'story' : s.length.includes('표준') ? 'standard' : 'short')
                     setSourceText(`[${s.code}] ${s.title}\n훅: "${s.hook}"\n\n오늘 찍은 소스를 추가해주세요.`)
+                    // 픽스된 대본을 저장 — generatePlan()이 edit-plan 엔진에 그대로 주입한다.
+                    setSeriesPlan({
+                      code: s.code,
+                      cuts: s.cuts,
+                      bgm: s.bgm,
+                      color: s.color,
+                      hook: s.hook,
+                    })
                     setSeriesMode(false)
                   }}
                 >
@@ -1629,6 +1645,7 @@ export default function Page() {
                 {renderResult ? '아래 영상을 확인하고 다운로드하세요.'
                   : rendering ? ''
                   : planLoading ? ''
+                  : plan?.planSource === 'series' ? `${plan.seriesCode || '시리즈'} 대본 그대로예요. 자막·손글씨만 손보고 "이대로 제작"을 눌러주세요.`
                   : plan ? 'AI가 짠 계획이에요. 마음에 들면 "이대로 제작"을 눌러주세요.'
                   : '순서대로 따라하면 완성이에요.'}
               </div>
