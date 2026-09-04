@@ -3,7 +3,133 @@
 import { useState, useEffect, useRef } from 'react'
 import { upload } from '@vercel/blob/client'
 import { drawAnnotationPreview, paintAnnotationInto, paintCaptionInto } from '../lib/handwriting-preview'
-
+const SERIES = [
+  {
+    code: 'IG_R01',
+    title: '다시 사업할 생각 없었습니다',
+    hook: '다시는 사업 안 하려고 했어요.',
+    category: '공간·오픈',
+    mood: '감동·진솔한',
+    length: '스토리 (30~45초)',
+    color: 'moody',
+    bgm: 'calm-piano',
+    sourceTags: ['이동/걷기', '손/도구 클로즈업', '유비 설명 셀카', '공간/풍경'],
+    shootList: ['테이블에서 일정표 보는 손 (2초, 세로)', '시술 가방에 물건 챙기는 모습 (2초, 세로)', '현관에서 가방 들고 나가는 뒷모습 (3초, 세로)', '아이패드·노트 보면서 작업하는 옆모습 (3초, 세로)', '시술 중 집중하는 모습 (3초, 세로)'],
+    cuts: [
+      { no:1, scene:'혼자 걸어가는 뒷모습 / 엘리베이터', caption:'다시는 사업 안 하려고 했어요.', fx:'transition' },
+      { no:2, scene:'시술하는 손 클로즈업', caption:'사업을 몇 번 해봤고, 결과가 좋지 않았거든요.', fx:'줌인' },
+      { no:3, scene:'시술 준비 / 고객 작업 평범한 모습', caption:'그래서 그냥 일만 잘하면서 살자 싶었어요.', fx:'고정' },
+      { no:4, scene:'커피 들고 출근 / 샵에서 일하는 일상', caption:'직원으로 일하는 삶이 오히려 편하고 안정적이었고요.', fx:'슬로우모션' },
+      { no:5, scene:'창밖 보는 모습 / 혼자 앉아 휴대폰', caption:'그런데 올해, 생각했던 삶의 순서가 갑자기 바뀌었습니다.', fx:'scratch' },
+      { no:6, scene:'캘린더 보는 손 / 일정 적는 모습', caption:'아버지가 갑작스럽게 암 진단을 받고 항암치료를 시작하셨어요.', fx:'impact' },
+      { no:7, scene:'스케줄 정리 / 가방 챙기기', caption:'내 시간을 내가 조절할 수 있는 환경이 필요했고', fx:'고정' },
+      { no:8, scene:'계산기·아이패드 작업', caption:'현실적으로 더 만들어야 하는 수입도 필요해졌습니다.', fx:'고정' },
+      { no:9, scene:'시술 가방 챙기기 → 장갑 끼기', caption:'그래서 다시, 독립을 선택했습니다.', fx:'riser' },
+      { no:10, scene:'시술하는 집중된 모습', caption:'용감해서 시작한 게 아니라', fx:'슬로우모션' },
+      { no:11, scene:'작업 끝내고 일어나는 뒷모습', caption:'이제는 해야 할 이유가 생겨서.', fx:'줌아웃' },
+    ],
+    note: '⚠️ 아버지 직접 노출 없이. 마지막에 홍보 문구 없이 끝내기.',
+  },
+  {
+    code: 'IG_R02',
+    title: '경력은 있는데 포트폴리오는 0입니다',
+    hook: '경력은 있었는데, 보여드릴 게 없었습니다.',
+    category: '공간·오픈',
+    mood: '담백/솔직',
+    length: '표준 (20~30초)',
+    color: 'neutral',
+    bgm: 'trust-corporate',
+    sourceTags: ['결과/전후 사진', '손/도구 클로즈업', '유비 설명 셀카'],
+    shootList: ['인스타 피드 화면 녹화 (천천히 스크롤, 2초, 세로)', 'CapCut·Canva 편집 화면 녹화 (2초, 세로)', '헤어라인 디자인하는 손 클로즈업 (2초, 세로)'],
+    cuts: [
+      { no:1, scene:'현재 인스타 피드 화면 천천히 스크롤', caption:'이 계정, 이제 겨우 한 달 됐어요.', fx:'줌인' },
+      { no:2, scene:'피드 역순으로 비워지는 연출', caption:'경력은 있었는데, 보여드릴 게 없었습니다.', fx:'scratch' },
+      { no:3, scene:'장갑 끼기 / 머신 클로즈업', caption:'오랫동안 반영구 일을 했지만', fx:'줌인' },
+      { no:4, scene:'시술 디테일 클로즈업', caption:'기존 포트폴리오는 두고 나왔거든요.', fx:'고정' },
+      { no:5, scene:'고객 사진 촬영하는 장면', caption:'그래서 한 명씩 다시 찍고', fx:'ding' },
+      { no:6, scene:'CapCut·Canva 편집 화면', caption:'하나씩 다시 만들고', fx:'typing' },
+      { no:7, scene:'카드뉴스·릴스 썸네일 촤라락', caption:'그렇게 한 달 동안', fx:'riser' },
+      { no:8, scene:'현재 피드 다시 등장 (꽉 찬 화면)', caption:'여기까지 채웠습니다.', fx:'shutter' },
+    ],
+    note: '💡 피드 역순 연출: 흰 사각형을 아래서 위로 올리면 됩니다 (CapCut 키프레임).',
+  },
+  {
+    code: 'IG_R03',
+    title: '독립했는데 제 샵이 없습니다',
+    hook: '독립은 했는데… 제 샵이 없었습니다.',
+    category: '일상 브이로그',
+    mood: '셀프디스 유머',
+    length: '표준 (20~30초)',
+    color: 'neutral',
+    bgm: 'upbeat-reel',
+    sourceTags: ['이동/걷기', '손/도구 클로즈업', '결과/전후 사진', '공간/풍경'],
+    shootList: ['시술 가방에 머신·재료 넣는 장면 (2초, 세로)', '엘리베이터 탑승 or 길 걷는 발 클로즈업 (2초, 세로)', '베드쉐어 공간 문 열고 들어가는 장면 (2초, 세로)', '짐 펼치기 / 공간 세팅하는 모습 (2초, 세로)', '시술 끝나고 짐 다시 싸는 모습 (2초, 세로)'],
+    cuts: [
+      { no:1, scene:'시술 가방 들고 이동하는 모습', caption:'독립은 했는데… 제 샵이 없었습니다.', fx:'transition' },
+      { no:2, scene:'캘린더/일정표 화면', caption:'원래는 여유 있게 준비하고 나오려 했어요.', fx:'줌인' },
+      { no:3, scene:'가방에 재료 넣는 장면', caption:'그런데 생각보다 조금 일찍 나오게 됐고', fx:'고정' },
+      { no:4, scene:'베드쉐어 가는 길 / 엘리베이터', caption:'새 샵 오픈까지 공백이 생겼습니다.', fx:'whoosh' },
+      { no:5, scene:'베드쉐어 공간 문 열기 / 내부', caption:'그렇다고 일을 쉴 수도 없고…', fx:'줌인' },
+      { no:6, scene:'짐 펼치기 / 공간 세팅', caption:'그래서 일단 베드부터 빌렸습니다ㅋㅋ', fx:'scratch' },
+      { no:7, scene:'장갑 끼기 → 시술 → 고객 촬영', caption:'내 공간은 없어도 시술은 계속.', fx:'슬로우모션' },
+      { no:8, scene:'짐 다시 싸는 뒷모습', caption:'짐 싸서 출근하고, 다시 싸서 퇴근하고', fx:'고정' },
+      { no:9, scene:'길 걷는 발 / 뒷모습', caption:'잠깐의 셋방살이 중입니다.', fx:'줌아웃' },
+    ],
+    note: '😄 셀프디스 유머 톤. 베드쉐어 공간이 너무 초라해 보이지 않게.',
+  },
+  {
+    code: 'IG_R04',
+    title: '요즘 제가 인스타에 진심인 이유',
+    hook: '한 달 전까지만 해도 제 계정은 거의 텅 비어 있었습니다.',
+    category: '일상 브이로그',
+    mood: '담백/솔직',
+    length: '표준 (20~30초)',
+    color: 'warm',
+    bgm: 'upbeat-reel',
+    sourceTags: ['유비 설명 셀카', '손/도구 클로즈업'],
+    shootList: ['카페에서 작업하는 모습 (2초, 세로)', '집에서 누워 인스타 확인하는 장면 (새벽 느낌, 2초, 세로)', '인스타 피드 스크린샷 3~4장 (6개→12개→20개→현재)'],
+    cuts: [
+      { no:1, scene:'인스타 피드 초반 비어있던 상태 연출', caption:'한 달 전까지만 해도 제 계정은 거의 텅 비어 있었습니다.', fx:'transition' },
+      { no:2, scene:'고객 사진 찍기 / B&A 컷', caption:'시술만 잘해서 되는 게 아니라', fx:'줌인' },
+      { no:3, scene:'아이패드 디자인 화면', caption:'내가 어떤 스타일인지, 어떤 사람인지', fx:'고정' },
+      { no:4, scene:'릴스 편집하는 손 / 폰 화면', caption:'다시 보여줘야 했어요.', fx:'줌인' },
+      { no:5, scene:'카드뉴스 만드는 화면', caption:'카드뉴스 만들고', fx:'typing' },
+      { no:6, scene:'릴스 찍는 모습 / 삼각대', caption:'릴스 찍고', fx:'고정' },
+      { no:7, scene:'새벽에 누워 인스타 확인하는 장면', caption:'혼자 자막 넣다가 새벽 되고…ㅋㅋ', fx:'sad-trombone' },
+      { no:8, scene:'피드 스크린샷 성장 과정 (촤라락)', caption:'그렇게 한 달 동안', fx:'riser' },
+      { no:9, scene:'현재 꽉 찬 피드 화면 녹화', caption:'하나하나 전부 제가 다시 만든 기록입니다.', fx:'shutter' },
+      { no:10, scene:'시술하는 집중된 모습', caption:'앞으로 채워질 게 더 많습니다.', fx:'슬로우모션' },
+    ],
+    note: '📱 피드 성장 스크린샷 날짜 순서 확인.',
+  },
+  {
+    code: 'IG_R05',
+    title: '베드쉐어에서 드디어 제 공간으로 갑니다',
+    hook: '독립은 했는데, 제 샵이 없었습니다.',
+    category: '공간·오픈',
+    mood: '감동·진솔한',
+    length: '스토리 (30~45초)',
+    color: 'moody',
+    bgm: 'calm-piano',
+    sourceTags: ['이동/걷기', '결과/전후 사진', '공간/풍경', '손/도구 클로즈업'],
+    shootList: ['⭐ 새 샵 빈 공간 처음 보는 날 (3초, 세로)', '⭐ 계약서 앞에 앉은 손 (2초, 세로)', '⭐ 열쇠 받는 장면 (2초, 세로)', '⭐ 샵 문 처음 열어보는 장면 (2초, 세로)', '정리 안 된 빈 바닥 / 택배 상자 (2초, 세로)', '혼자 빈 샵에 앉아 있는 모습 (3초, 세로)', '완성된 샵 첫 컷 (3초, 세로)'],
+    cuts: [
+      { no:1, scene:'시술 가방 들고 이동 (3편 회상)', caption:'독립은 했는데, 제 샵이 없었습니다.', fx:'transition' },
+      { no:2, scene:'일정표 / 짐 챙기는 컷', caption:'생각보다 조금 일찍 나오게 되면서', fx:'고정' },
+      { no:3, scene:'베드쉐어 가는 길 / 공간', caption:'새 샵 오픈 전까지 공백이 생겼어요.', fx:'고정' },
+      { no:4, scene:'베드쉐어 재료 세팅 / 장갑', caption:'그렇다고 일을 쉴 수는 없어서', fx:'고정' },
+      { no:5, scene:'베드쉐어 시술 장면', caption:'일단 베드부터 빌렸습니다ㅋㅋ', fx:'scratch' },
+      { no:6, scene:'시술 결과 / 포트폴리오', caption:'그렇게 시술도 하고, 포트폴리오도 다시 쌓고', fx:'고정' },
+      { no:7, scene:'짐 다시 싸는 모습', caption:'짐 싸서 출근하고, 다시 싸서 퇴근하고', fx:'고정' },
+      { no:8, scene:'⭐ 새 샵 빈 공간 처음 보는 날', caption:'그러다 드디어', fx:'riser' },
+      { no:9, scene:'⭐ 열쇠 받는 장면 / 문 여는 장면', caption:'제 이름으로 쓸 공간이 생겼습니다.', fx:'impact-big' },
+      { no:10, scene:'빈 샵 → 세팅 중 → 완성 장면', caption:'셋방살이 끝.', fx:'drumroll' },
+      { no:11, scene:'완성된 샵 or 문 여는 장면', caption:'이제 진짜 제 샵으로 출근합니다.', fx:'bell' },
+      { no:12, scene:'로고 or 샵 간판 클로즈업', caption:'SWAN BEAUTY · 석촌  9.21 OPEN', fx:'sparkle' },
+    ],
+    note: '🌟 impact-big은 9번 컷 딱 한 번만. 앞 편 회상 컷은 1.5초씩 짧게.',
+  },
+]
 const SOURCE_TAGS = [
   '클로즈업', '결과/전후 사진', '고객 반응', '거울 확인 장면',
   '손/도구 클로즈업', '유비 설명 셀카', '이동/걷기', '공간/풍경',
@@ -701,6 +827,8 @@ function probeVideoDuration(file) {
 let nextClipId = 1
 
 export default function Page() {
+  const [seriesMode, setSeriesMode] = useState(false)
+  const [selectedSeries, setSelectedSeries] = useState(null)
   const [step, setStep] = useState(1)
   const [sourceText, setSourceText] = useState('')
   const [sourceTags, setSourceTags] = useState([])
@@ -1059,6 +1187,101 @@ export default function Page() {
       </div>
 
       <div className="main">
+              {/* 시리즈 모드 탭 */}
+        <div className="mode-tabs">
+          <button
+            className={`mode-tab${!seriesMode ? ' on' : ''}`}
+            onClick={() => { setSeriesMode(false); setSelectedSeries(null); }}
+          >
+            자유 모드
+            <span>그때그때 소스로 연출</span>
+          </button>
+          <button
+            className={`mode-tab${seriesMode ? ' on' : ''}`}
+            onClick={() => setSeriesMode(true)}
+          >
+            시리즈 모드 ✦
+            <span>5편 스토리 자동 입력</span>
+          </button>
+        </div>
+
+        {/* 시리즈 모드 패널 */}
+        {seriesMode && step === 1 && (
+          <div className="series-panel">
+            <div className="section">
+              <div className="sec-eyebrow">시리즈 모드</div>
+              <div className="sec-title">어떤 편 만들어요?</div>
+              <div className="sec-desc">편을 고르면 훅·자막·컷 구성이 자동으로 채워져요.</div>
+            </div>
+            <div className="series-grid">
+              {SERIES.map((s, i) => (
+                <div
+                  key={s.code}
+                  className={`series-card${selectedSeries === i ? ' selected' : ''}`}
+                  onClick={() => setSelectedSeries(i)}
+                >
+                  <div className="series-no">{selectedSeries === i ? '✓' : i + 1}</div>
+                  <div className="series-info">
+                    <div className="series-title">{s.title}</div>
+                    <div className="series-meta">
+                      <span className="series-tag tag-ep">{s.code}</span>
+                      <span className="series-tag tag-tone">{s.mood}</span>
+                      <span className="series-tag tag-len">{s.length}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {selectedSeries !== null && (
+              <div className="auto-preview">
+                <div className="auto-preview-head">
+                  <span className="auto-preview-badge">자동 입력</span>
+                  <span className="auto-preview-title">{SERIES[selectedSeries].code} · {SERIES[selectedSeries].title}</span>
+                </div>
+                <div className="auto-preview-body">
+                  <div className="auto-row"><span className="auto-label">훅</span><span className="auto-val">"{SERIES[selectedSeries].hook}"</span></div>
+                  <div className="auto-row"><span className="auto-label">분위기</span><span className="auto-val">{SERIES[selectedSeries].mood}</span></div>
+                  <div className="auto-row"><span className="auto-label">길이</span><span className="auto-val">{SERIES[selectedSeries].length}</span></div>
+                  <div className="auto-row"><span className="auto-label">BGM</span><span className="auto-val">{SERIES[selectedSeries].bgm}</span></div>
+                  <div className="auto-row">
+                    <span className="auto-label">촬영 요청</span>
+                    <span className="auto-val">{SERIES[selectedSeries].shootList.map((t, i) => <div key={i}>· {t}</div>)}</span>
+                  </div>
+                </div>
+                <div className="series-cuts">
+                  <div className="dir-sec-label">컷 구성</div>
+                  {SERIES[selectedSeries].cuts.map((c) => (
+                    <div key={c.no} className="cut-row">
+                      <div className="cut-no">{c.no}</div>
+                      <div className="cut-body">
+                        <div className="cut-scene">{c.scene}</div>
+                        <div className="cut-caption">"{c.caption}"</div>
+                        <div className="cut-effect">효과: {c.fx}</div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="series-note">{SERIES[selectedSeries].note}</div>
+                </div>
+                <button
+                  className="btn-primary"
+                  style={{marginTop: '16px'}}
+                  onClick={() => {
+                    const s = SERIES[selectedSeries]
+                    setSourceTags(s.sourceTags)
+                    setCategory(s.category)
+                    setMood(s.mood)
+                    setTargetLength(s.length.includes('스토리') ? 'story' : s.length.includes('표준') ? 'standard' : 'short')
+                    setSourceText(`[${s.code}] ${s.title}\n훅: "${s.hook}"\n\n오늘 찍은 소스를 추가해주세요.`)
+                    setSeriesMode(false)
+                  }}
+                >
+                  이 편으로 시작하기 →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <div className="steps">
           <StepDot n={1} current={step} />
           <div className="step-line" />
